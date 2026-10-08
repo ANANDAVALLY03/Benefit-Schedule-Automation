@@ -18,328 +18,334 @@ const Header = ({ darkMode, toggleTheme }) => {
   return (
     <header
       className={`
+        canopy-wave-header
+        relative
         h-20
         flex
         items-center
         justify-between
         px-6
         border-b
+        overflow-hidden
         transition-colors
         duration-300
-
         ${
           darkMode
-            ? "bg-[#12352B] border-[#1E5A45]"
-            : "bg-white border-[#D5E2DA]"
+            ? `
+              bg-gradient-to-r
+              from-[#0B241C]
+              via-[#12352B]
+              to-[#1E5A45]
+              border-[#1E5A45]
+            `
+            : `
+              bg-gradient-to-r
+              from-[#E8F2EC]
+              via-[#DCEFE3]
+              to-[#A8D5BA]
+              border-[#D5E2DA]
+            `
         }
       `}
     >
+      {/* =====================================
+          HEADER CONTENT
+      ===================================== */}
 
-      {/* =========================
-          BRAND
-      ========================= */}
-      <div className="flex items-center gap-3">
+      <div className="relative z-10 flex items-center justify-between w-full">
 
-        <div
-          className={`
-            w-9
-            h-9
-            rounded-lg
-            flex
-            items-center
-            justify-center
-            animate-pulse
+        {/* =====================================
+            CANOPY BRAND
+        ===================================== */}
 
-            ${
-              darkMode
-                ? "bg-[#E8F2EC] text-[#12352B]"
-                : "bg-[#E8F2EC] text-[#1E5A45]"
-            }
-          `}
-        >
-          <ShieldPlus
-            size={22}
-            strokeWidth={2.2}
-          />
-        </div>
+        <div className="flex items-center gap-3">
 
-        <div>
+          {/* Shield Icon */}
 
-          <h1
+          <div
             className={`
-              text-xl
-              font-bold
-              tracking-wide
-              ${darkMode ? "text-white" : "text-[#12352B]"}
-            `}
-          >
-            CANOPY
-          </h1>
-
-          <p
-            className={`
-              text-xs
-              font-semibold
-              ${darkMode ? "text-[#A8D5BA]" : "text-[#1E5A45]"}
-            `}
-          >
-            Benefit Intelligence
-          </p>
-
-        </div>
-
-      </div>
-
-
-      {/* =========================
-          RIGHT SECTION
-      ========================= */}
-      <div className="flex items-center gap-5">
-
-        {/* Search */}
-        <div className="relative">
-
-          <Search
-            size={18}
-            className={`
-              absolute
-              left-3
-              top-1/2
-              -translate-y-1/2
-
-              ${darkMode
-                ? "text-[#A8D5BA]"
-                : "text-[#1E5A45]"
-              }
-            `}
-          />
-
-          <input
-            type="text"
-            placeholder="Search..."
-            className={`
-              w-64
-              h-10
-              pl-10
-              pr-4
+              w-9
+              h-9
               rounded-lg
-              border
-              text-sm
-              font-medium
-              outline-none
-              transition-colors
-
-              ${
-                darkMode
-                  ? `
-                    bg-[#164A38]
-                    border-[#2B6A52]
-                    text-white
-                    placeholder:text-[#A8D5BA]
-                    focus:border-[#7BAE8C]
-                    focus:ring-1
-                    focus:ring-[#7BAE8C]
-                  `
-                  : `
-                    bg-[#F7F5EF]
-                    border-[#D5E2DA]
-                    text-[#12352B]
-                    placeholder:text-[#1E5A45]
-                    focus:border-[#1E5A45]
-                    focus:ring-1
-                    focus:ring-[#1E5A45]
-                  `
-              }
-            `}
-          />
-
-        </div>
-
-
-        {/* Theme Toggle */}
-        <button
-          type="button"
-          onClick={toggleTheme}
-          title={
-            darkMode
-              ? "Switch to light mode"
-              : "Switch to dark mode"
-          }
-          className={`
-            w-11
-            h-11
-            rounded-full
-            flex
-            items-center
-            justify-center
-            transition-all
-            duration-300
-
-            ${
-              darkMode
-                ? `
-                  bg-[#E8F2EC]
-                  text-[#12352B]
-                  hover:bg-white
-                `
-                : `
-                  bg-[#E8F2EC]
-                  text-[#1E5A45]
-                  hover:bg-[#D5E2DA]
-                `
-            }
-          `}
-        >
-          {darkMode ? (
-            <Sun size={20} />
-          ) : (
-            <Moon size={20} />
-          )}
-        </button>
-
-
-        {/* User Section */}
-        <div className="relative">
-
-          <button
-            type="button"
-            onClick={toggleProfile}
-            className={`
               flex
               items-center
-              gap-3
-              pl-3
-              border-l
-
+              justify-center
+              transition-all
+              duration-300
+              hover:scale-105
               ${
                 darkMode
-                  ? "border-[#2B6A52]"
-                  : "border-[#D5E2DA]"
+                  ? "bg-[#E8F2EC] text-[#12352B]"
+                  : "bg-white/90 text-[#1E5A45]"
               }
             `}
           >
+            <ShieldPlus
+              size={22}
+              strokeWidth={2.2}
+            />
+          </div>
 
-            <div
+          {/* Brand Text */}
+
+          <div>
+            <h1
               className={`
-                w-10
-                h-10
-                rounded-full
-                flex
-                items-center
-                justify-center
-
+                text-xl
+                font-bold
+                tracking-wide
                 ${
                   darkMode
-                    ? "bg-[#E8F2EC] text-[#12352B]"
-                    : "bg-[#E8F2EC] text-[#1E5A45]"
+                    ? "text-white"
+                    : "text-[#12352B]"
                 }
               `}
             >
-              <User size={20} />
-            </div>
+              CANOPY
+            </h1>
 
-            <div className="text-left">
-
-              <p
-                className={`
-                  text-sm
-                  font-semibold
-                  ${darkMode ? "text-white" : "text-[#12352B]"}
-                `}
-              >
-                John Doe
-              </p>
-
-              <p
-                className={`
-                  text-xs
-                  font-medium
-                  ${darkMode ? "text-[#A8D5BA]" : "text-[#1E5A45]"}
-                `}
-              >
-                Underwriter
-              </p>
-
-            </div>
-
-            <ChevronDown
-              size={17}
+            <p
               className={`
-                transition-transform
-                duration-200
-
-                ${profileOpen ? "rotate-180" : ""}
-
+                text-xs
+                font-semibold
                 ${
                   darkMode
-                    ? "text-[#A8D5BA]"
-                    : "text-[#12352B]"
+                    ? "text-[#DCEFE3]"
+                    : "text-[#1E5A45]"
+                }
+              `}
+            >
+              Benefit Intelligence
+            </p>
+          </div>
+
+        </div>
+
+        {/* =====================================
+            RIGHT SECTION
+        ===================================== */}
+
+        <div className="flex items-center gap-5">
+
+          {/* =================================
+              SEARCH
+          ================================= */}
+
+          <div className="relative">
+
+            <Search
+              size={18}
+              className={`
+                absolute
+                left-3
+                top-1/2
+                -translate-y-1/2
+                transition-colors
+                duration-300
+                ${
+                  darkMode
+                    ? "text-[#DCEFE3]"
+                    : "text-[#1E5A45]"
                 }
               `}
             />
 
-          </button>
-
-
-          {/* Profile Dropdown */}
-          {profileOpen && (
-            <div
+            <input
+              type="text"
+              placeholder="Search..."
               className={`
-                absolute
-                right-0
-                top-14
-                w-48
+                w-64
+                h-10
+                pl-10
+                pr-4
                 rounded-lg
                 border
-                shadow-lg
-                z-50
-                overflow-hidden
+                text-sm
+                font-medium
+                outline-none
+                transition-all
+                duration-300
 
                 ${
                   darkMode
-                    ? "bg-[#164A38] border-[#2B6A52]"
-                    : "bg-white border-[#D5E2DA]"
+                    ? `
+                      bg-[#12352B]/50
+                      border-white/20
+                      text-white
+                      placeholder:text-[#DCEFE3]
+                      focus:border-[#A8D5BA]
+                      focus:ring-1
+                      focus:ring-[#A8D5BA]
+                    `
+                    : `
+                      bg-white/75
+                      border-[#D5E2DA]
+                      text-[#12352B]
+                      placeholder:text-[#1E5A45]
+                      focus:border-[#1E5A45]
+                      focus:ring-1
+                      focus:ring-[#1E5A45]
+                    `
+                }
+              `}
+            />
+
+          </div>
+
+          {/* =================================
+              THEME TOGGLE
+          ================================= */}
+
+          <button
+            type="button"
+            onClick={toggleTheme}
+            title={
+              darkMode
+                ? "Switch to light mode"
+                : "Switch to dark mode"
+            }
+            className={`
+              w-11
+              h-11
+              rounded-full
+              flex
+              items-center
+              justify-center
+              transition-all
+              duration-300
+              hover:scale-105
+              ${
+                darkMode
+                  ? `
+                    bg-[#E8F2EC]
+                    text-[#12352B]
+                    hover:bg-white
+                  `
+                  : `
+                    bg-[#12352B]
+                    text-white
+                    hover:bg-[#1E5A45]
+                  `
+              }
+            `}
+          >
+            {darkMode ? (
+              <Sun size={20} />
+            ) : (
+              <Moon size={20} />
+            )}
+          </button>
+
+          {/* =================================
+              USER PROFILE
+          ================================= */}
+
+          <div className="relative">
+
+            <button
+              type="button"
+              onClick={toggleProfile}
+              className={`
+                flex
+                items-center
+                gap-3
+                pl-3
+                border-l
+                transition-all
+                duration-300
+                ${
+                  darkMode
+                    ? "border-white/20"
+                    : "border-[#D5E2DA]"
                 }
               `}
             >
 
-              <button
-                type="button"
+              {/* Avatar */}
+
+              <div
                 className={`
-                  w-full
+                  w-10
+                  h-10
+                  rounded-full
                   flex
                   items-center
-                  gap-3
-                  px-4
-                  py-3
-                  text-sm
-                  font-medium
-                  transition-colors
-
+                  justify-center
+                  transition-all
+                  duration-300
+                  hover:scale-105
                   ${
                     darkMode
-                      ? `
-                        text-white
-                        hover:bg-[#1E5A45]
-                      `
-                      : `
-                        text-[#12352B]
-                        hover:bg-[#E8F2EC]
-                      `
+                      ? "bg-[#E8F2EC] text-[#12352B]"
+                      : "bg-white text-[#1E5A45]"
                   }
                 `}
               >
-                <User size={17} />
-                <span>View Profile</span>
-              </button>
+                <User size={20} />
+              </div>
 
-            </div>
-          )}
+              {/* User Details */}
+
+              <div className="text-left">
+
+                <p
+                  className={`
+                    text-sm
+                    font-semibold
+                    ${
+                      darkMode
+                        ? "text-white"
+                        : "text-[#12352B]"
+                    }
+                  `}
+                >
+                  John Doe
+                </p>
+
+                <p
+                  className={`
+                    text-xs
+                    font-medium
+                    ${
+                      darkMode
+                        ? "text-[#DCEFE3]"
+                        : "text-[#1E5A45]"
+                    }
+                  `}
+                >
+                  Underwriter
+                </p>
+
+              </div>
+
+              {/* Dropdown Arrow */}
+
+              <ChevronDown
+                size={17}
+                className={`
+                  transition-transform
+                  duration-200
+                  ${
+                    profileOpen
+                      ? "rotate-180"
+                      : ""
+                  }
+                  ${
+                    darkMode
+                      ? "text-[#DCEFE3]"
+                      : "text-[#12352B]"
+                  }
+                `}
+              />
+
+            </button>
+
+           
+
+          </div>
 
         </div>
-
       </div>
-
     </header>
   );
 };

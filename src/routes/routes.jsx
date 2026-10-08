@@ -6,6 +6,8 @@ import UnderwriterOverview from "../pages/underWrite/underWrite";
 import Documents from "../pages/underwrite/Documents";
 import Benefits from "../pages/underwrite/benefits";
 import Validations from "../pages/underwrite/Validations";
+import Exceptions from "../pages/underwrite/Exceptions";
+import Underwriting from "../pages/underwrite/Underwriting";
 
 const AppRoutes = () => {
   return (
@@ -58,6 +60,26 @@ const AppRoutes = () => {
         element={
           <Layout role="Underwriter">
             <Validations />
+          </Layout>
+        }
+      />
+
+      {/* Exceptions */}
+      <Route
+        path="/underwriter/exceptions"
+        element={
+          <Layout role="Underwriter">
+            <Exceptions />
+          </Layout>
+        }
+      />
+
+      {/* Underwriting */}
+      <Route
+        path="/underwriter/work"
+        element={
+          <Layout role="Underwriter">
+            <Underwriting />
           </Layout>
         }
       />

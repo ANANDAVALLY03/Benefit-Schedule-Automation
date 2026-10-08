@@ -10,28 +10,48 @@ const Layout = ({ children, role = "Underwriter" }) => {
   };
 
   return (
-    <div className="min-h-screen bg-[#F7F5EF]">
+    <div className="h-screen overflow-hidden bg-[#F7F5EF]">
 
-      {/* Header */}
-      <Header
-        darkMode={darkMode}
-        toggleTheme={toggleTheme}
-      />
+      {/* =====================================
+          FIXED HEADER
+      ===================================== */}
 
-      <div className="flex">
+      <div className="fixed top-0 left-0 right-0 z-50">
+        <Header
+          darkMode={darkMode}
+          toggleTheme={toggleTheme}
+        />
+      </div>
 
-        {/* Sidebar */}
+      {/* =====================================
+          FIXED SIDEBAR
+      ===================================== */}
+
+      <div className="fixed top-20 left-0 bottom-0 z-40">
         <Sidebar
           role={role}
           darkMode={darkMode}
         />
-
-        {/* Main Content */}
-        <main className="flex-1 min-h-[calc(100vh-5rem)] bg-[#F7F5EF]">
-          {children}
-        </main>
-
       </div>
+
+      {/* =====================================
+          SCROLLABLE MAIN CONTENT
+      ===================================== */}
+
+      <main
+        className="
+          absolute
+          top-20
+          left-64
+          right-0
+          bottom-0
+          overflow-y-auto
+          bg-[#F7F5EF]
+        "
+      >
+        {children}
+      </main>
+
     </div>
   );
 };

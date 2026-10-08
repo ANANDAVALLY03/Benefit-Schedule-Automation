@@ -93,3 +93,105 @@ select {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--canopy-forest);
 }
+
+/* =========================================
+   CANOPY HEADER - ANIMATED GREEN WAVES
+========================================= */
+
+.canopy-wave-header {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+/* Main moving wave */
+.canopy-wave-header::before {
+  content: "";
+  position: absolute;
+  width: 150%;
+  height: 300%;
+  left: -25%;
+  top: -100%;
+
+  background:
+    radial-gradient(
+      ellipse at 30% 50%,
+      rgba(168, 213, 186, 0.85) 0%,
+      rgba(95, 159, 126, 0.65) 25%,
+      rgba(30, 90, 69, 0.35) 45%,
+      transparent 70%
+    );
+
+  transform: rotate(-8deg);
+  animation: canopy-wave-one 12s ease-in-out infinite;
+  z-index: -2;
+}
+
+/* Second flowing wave */
+.canopy-wave-header::after {
+  content: "";
+  position: absolute;
+  width: 160%;
+  height: 280%;
+  left: -30%;
+  top: -90%;
+
+  background:
+    radial-gradient(
+      ellipse at 70% 45%,
+      rgba(220, 239, 227, 0.55) 0%,
+      rgba(123, 174, 140, 0.45) 25%,
+      rgba(22, 74, 56, 0.3) 50%,
+      transparent 72%
+    );
+
+  transform: rotate(8deg);
+  animation: canopy-wave-two 15s ease-in-out infinite;
+  z-index: -1;
+}
+
+/* Wave 1 movement */
+@keyframes canopy-wave-one {
+  0% {
+    transform: translateX(-12%) translateY(4%) rotate(-8deg);
+  }
+
+  25% {
+    transform: translateX(8%) translateY(-3%) rotate(-5deg);
+  }
+
+  50% {
+    transform: translateX(18%) translateY(5%) rotate(-2deg);
+  }
+
+  75% {
+    transform: translateX(3%) translateY(-4%) rotate(-6deg);
+  }
+
+  100% {
+    transform: translateX(-12%) translateY(4%) rotate(-8deg);
+  }
+}
+
+/* Wave 2 movement */
+@keyframes canopy-wave-two {
+  0% {
+    transform: translateX(15%) translateY(-4%) rotate(8deg);
+  }
+
+  25% {
+    transform: translateX(-5%) translateY(5%) rotate(5deg);
+  }
+
+  50% {
+    transform: translateX(-18%) translateY(-2%) rotate(1deg);
+  }
+
+  75% {
+    transform: translateX(-3%) translateY(6%) rotate(6deg);
+  }
+
+  100% {
+    transform: translateX(15%) translateY(-4%) rotate(8deg);
+  }
+}
