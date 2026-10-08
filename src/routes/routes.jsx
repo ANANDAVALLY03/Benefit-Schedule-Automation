@@ -9,9 +9,31 @@ import Validations from "../pages/underwrite/Validations";
 import Exceptions from "../pages/underwrite/Exceptions";
 import Underwriting from "../pages/underwrite/Underwriting";
 
+import ProposalSalesReview from "../pages/underwrite/pdf&salesReview";
+import Options from "../pages/underwrite/options";
+import Pricing from "../pages/underwrite/pricing";
 const AppRoutes = () => {
   return (
     <Routes>
+
+{/* Options */}
+<Route
+  path="/underwriter/options"
+  element={
+    <Layout role="Underwriter">
+      <Options />
+    </Layout>
+  }
+/>
+{/* Pricing */}
+<Route
+  path="/underwriter/pricing"
+  element={
+    <Layout role="Underwriter">
+      <Pricing />
+    </Layout>
+  }
+/>
 
       {/* Default */}
       <Route
@@ -80,6 +102,16 @@ const AppRoutes = () => {
         element={
           <Layout role="Underwriter">
             <Underwriting />
+          </Layout>
+        }
+      />
+
+      {/* Sales Approval */}
+      <Route
+        path="/underwriter/sales-approval"
+        element={
+          <Layout role="Underwriter">
+            <ProposalSalesReview />
           </Layout>
         }
       />
