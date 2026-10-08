@@ -17,7 +17,50 @@
 
 html,
 body,
+#root 
+/* ========================================
+   CANOPY BENEFIT INTELLIGENCE
+   Global Theme
+======================================== */
+
+:root {
+  /* Canopy Colors */
+  --canopy-dark-forest: #12352B;
+  --canopy-forest: #1E5A45;
+  --canopy-sage: #7BAE8C;
+  --canopy-mint: #DCEFE3;
+  --canopy-cream: #F7F5EF;
+  --canopy-white: #FFFFFF;
+  --canopy-charcoal: #24302B;
+  --canopy-amber: #E7A83B;
+  --canopy-red: #D95C5C;
+
+  /* Typography */
+  --font-sans: system-ui, "Segoe UI", Roboto, sans-serif;
+
+  /* Browser */
+  font-family: var(--font-sans);
+  color: var(--canopy-charcoal);
+  background: var(--canopy-cream);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ========================================
+   Reset
+======================================== */
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
 #root {
+  margin: 0;
+  min-width: 100%;
   min-height: 100%;
 }
 
@@ -33,4 +76,49 @@ body {
     BlinkMacSystemFont,
     "Segoe UI",
     sans-serif;
+  font-family: var(--font-sans);
+  background: var(--canopy-cream);
+  color: var(--canopy-charcoal);
+}
+
+/* ========================================
+   Links
+======================================== */
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* ========================================
+   Buttons
+======================================== */
+
+button,
+input,
+textarea,
+select {
+  font-family: inherit;
+}
+
+/* ========================================
+   Scrollbar
+======================================== */
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--canopy-cream);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--canopy-sage);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--canopy-forest);
 }

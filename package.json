@@ -11,14 +11,21 @@
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.3",
+<<<<<<< HEAD
     "formik": "^2.4.9",
+=======
+>>>>>>> 4e34b415e42f08a772ca51c4688b1c49964cc493
     "lucide-react": "^1.52.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-router-dom": "^7.18.4",
+<<<<<<< HEAD
     "tailwindcss": "^4.3.3",
     "yup": "^1.7.1",
     "zustand": "^5.0.15"
+=======
+    "tailwindcss": "^4.3.3"
+>>>>>>> 4e34b415e42f08a772ca51c4688b1c49964cc493
   },
   "devDependencies": {
     "@babel/core": "^7.29.7",
