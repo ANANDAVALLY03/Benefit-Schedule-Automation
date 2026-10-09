@@ -1,4 +1,6 @@
+
 import React, { useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Plus,
   UploadCloud,
@@ -16,10 +18,7 @@ import {
 
 const Documents = () => {
   const fileInputRef = useRef(null);
-
-  // ---------------------------------------------------------
-  // Create project form state
-  // ---------------------------------------------------------
+  const navigate = useNavigate();
 
   const [project, setProject] = useState({
     clientName: "",
@@ -29,13 +28,9 @@ const Documents = () => {
 
   const [selectedFile, setSelectedFile] = useState(null);
   const [dragActive, setDragActive] = useState(false);
-
-  // Form is CLOSED by default
+  const [projectCreated, setProjectCreated] = useState(false);
+  const [createdProject, setCreatedProject] = useState(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
-
-  // ---------------------------------------------------------
-  // Previous projects
-  // ---------------------------------------------------------
 
   const [projects] = useState([
     {
@@ -78,10 +73,6 @@ const Documents = () => {
 
   const [searchTerm, setSearchTerm] = useState("");
 
-  // ---------------------------------------------------------
-  // File validation
-  // ---------------------------------------------------------
-
   const allowedExtensions = [".xlsx", ".pdf"];
 
   const isValidFile = (file) => {
@@ -101,65 +92,49 @@ const Documents = () => {
       alert(
         "Invalid file format.\n\nPlease upload a benefit schedule in .xlsx or .pdf format."
       );
-
       return;
     }
 
     setSelectedFile(file);
+    setProjectCreated(false);
+    setCreatedProject(null);
   };
-
-  // ---------------------------------------------------------
-  // Browse file
-  // ---------------------------------------------------------
 
   const handleFileChange = (event) => {
     const file = event.target.files?.[0];
 
     validateAndSetFile(file);
 
-    // Allow selecting the same file again
     event.target.value = "";
   };
-
-  // ---------------------------------------------------------
-  // Drag and drop
-  // ---------------------------------------------------------
 
   const handleDragEnter = (event) => {
     event.preventDefault();
     event.stopPropagation();
-
     setDragActive(true);
   };
 
   const handleDragOver = (event) => {
     event.preventDefault();
     event.stopPropagation();
-
     setDragActive(true);
   };
 
   const handleDragLeave = (event) => {
     event.preventDefault();
     event.stopPropagation();
-
     setDragActive(false);
   };
 
   const handleDrop = (event) => {
     event.preventDefault();
     event.stopPropagation();
-
     setDragActive(false);
 
     const file = event.dataTransfer.files?.[0];
 
     validateAndSetFile(file);
   };
-
-  // ---------------------------------------------------------
-  // File size formatter
-  // ---------------------------------------------------------
 
   const formatFileSize = (bytes) => {
     if (!bytes) return "0 KB";
@@ -175,10 +150,6 @@ const Documents = () => {
     return `${mb.toFixed(2)} MB`;
   };
 
-  // ---------------------------------------------------------
-  // File type
-  // ---------------------------------------------------------
-
   const getFileExtension = (fileName = "") => {
     return fileName.split(".").pop()?.toLowerCase();
   };
@@ -186,10 +157,6 @@ const Documents = () => {
   const isPdf = selectedFile
     ? getFileExtension(selectedFile.name) === "pdf"
     : false;
-
-  // ---------------------------------------------------------
-  // Form change
-  // ---------------------------------------------------------
 
   const handleProjectChange = (event) => {
     const { name, value } = event.target;
@@ -200,10 +167,6 @@ const Documents = () => {
     }));
   };
 
-  // ---------------------------------------------------------
-  // Reset form
-  // ---------------------------------------------------------
-
   const resetForm = () => {
     setProject({
       clientName: "",
@@ -212,11 +175,9 @@ const Documents = () => {
     });
 
     setSelectedFile(null);
+    setProjectCreated(false);
+    setCreatedProject(null);
   };
-
-  // ---------------------------------------------------------
-  // Create project
-  // ---------------------------------------------------------
 
   const createProject = (event) => {
     event.preventDefault();
@@ -248,35 +209,32 @@ const Documents = () => {
       return;
     }
 
-    // -------------------------------------------------------
-    // Backend integration will happen here
-    // -------------------------------------------------------
-
-    console.log("Creating project:", {
-      ...project,
-      file: selectedFile,
-      initialVersion: "v0.0",
+    const newProject = {
+      projectId: `BEN-${Date.now()}`,
+      clientName: project.clientName.trim(),
+      sourceInsurer: project.sourceInsurer.trim(),
+      assignedUW: project.assignedUW.trim(),
+      version: "v0.0",
       state: "Raw Upload",
       status: "Import Pending",
-    });
+      fileName: selectedFile.name,
+    };
 
-    alert(
-      "Project creation flow is ready for backend integration.\n\n" +
-        "Initial version: v0.0\n" +
-        "State: Raw Upload\n" +
-        "Status: Import Pending"
-    );
-
-    // Reset form
-    resetForm();
-
-    // Close the create section after successful creation
-    setShowCreateForm(false);
+    setCreatedProject(newProject);
+    setProjectCreated(true);
   };
 
-  // ---------------------------------------------------------
-  // Search previous projects
-  // ---------------------------------------------------------
+  // Redirect to Benefits when Validate is clicked.
+  const handleValidate = () => {
+    if (!createdProject || !selectedFile) return;
+
+    navigate("/underwriter/benefits", {
+      state: {
+        project: createdProject,
+        file: selectedFile,
+      },
+    });
+  };
 
   const filteredProjects = projects.filter((item) => {
     const search = searchTerm.toLowerCase().trim();
@@ -291,10 +249,6 @@ const Documents = () => {
       item.status.toLowerCase().includes(search)
     );
   });
-
-  // ---------------------------------------------------------
-  // Status badge
-  // ---------------------------------------------------------
 
   const getStatusClass = (status) => {
     if (status.includes("Locked")) {
@@ -312,38 +266,21 @@ const Documents = () => {
     return "bg-[#F7F5EF] text-[#385348] border-[#D5E2DA]";
   };
 
-  // ---------------------------------------------------------
-  // Render
-  // ---------------------------------------------------------
-
   return (
     <div className="min-h-full bg-[#F7F5EF] px-8 py-7">
-      {/* =====================================================
-          PAGE HEADER
-      ====================================================== */}
-
+      {/* Page Header */}
       <div className="mb-6">
-        <div className="flex items-center gap-3">
-          <div>
-            <h1 className="text-2xl font-bold text-[#12352B]">
-              Documents
-            </h1>
+        <h1 className="text-2xl font-bold text-[#12352B]">
+          Documents
+        </h1>
 
-            <p className="mt-1 text-sm text-[#66756D]">
-              Create and manage benefit schedule projects.
-            </p>
-          </div>
-        </div>
+        <p className="mt-1 text-sm text-[#66756D]">
+          Create and manage benefit schedule projects.
+        </p>
       </div>
 
-      {/* =====================================================
-          CREATE NEW BENEFIT SCHEDULE
-          COLLAPSED BY DEFAULT
-      ====================================================== */}
-
+      {/* Create New Benefit Schedule */}
       <div className="mb-7 overflow-hidden rounded-xl border border-[#D5E2DA] bg-white shadow-sm">
-        {/* Clickable Header */}
-
         <button
           type="button"
           onClick={() => setShowCreateForm((previous) => !previous)}
@@ -373,17 +310,10 @@ const Documents = () => {
           />
         </button>
 
-        {/* ===================================================
-            EXPANDED FORM
-        ==================================================== */}
-
         {showCreateForm && (
           <div className="border-t border-[#D5E2DA]">
             <form onSubmit={createProject}>
-              {/* -----------------------------------------------
-                  PROJECT DETAILS
-              ------------------------------------------------ */}
-
+              {/* Project Details */}
               <div className="px-6 py-6">
                 <div className="mb-5">
                   <h3 className="text-sm font-semibold text-[#12352B]">
@@ -391,18 +321,14 @@ const Documents = () => {
                   </h3>
 
                   <p className="mt-1 text-xs text-[#74827B]">
-                    Enter the basic information for the benefit schedule
-                    project.
+                    Enter the basic information for the benefit schedule project.
                   </p>
                 </div>
 
                 <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
-                  {/* Client */}
-
                   <div>
                     <label className="mb-2 block text-sm font-medium text-[#30443B]">
-                      Client Name
-                      <span className="ml-1 text-[#C94C4C]">*</span>
+                      Client Name <span className="ml-1 text-[#C94C4C]">*</span>
                     </label>
 
                     <input
@@ -415,12 +341,9 @@ const Documents = () => {
                     />
                   </div>
 
-                  {/* Source Insurer */}
-
                   <div>
                     <label className="mb-2 block text-sm font-medium text-[#30443B]">
-                      Source Insurer
-                      <span className="ml-1 text-[#C94C4C]">*</span>
+                      Source Insurer <span className="ml-1 text-[#C94C4C]">*</span>
                     </label>
 
                     <input
@@ -433,12 +356,9 @@ const Documents = () => {
                     />
                   </div>
 
-                  {/* Assigned UW */}
-
                   <div>
                     <label className="mb-2 block text-sm font-medium text-[#30443B]">
-                      Assigned Underwriter
-                      <span className="ml-1 text-[#C94C4C]">*</span>
+                      Assigned Underwriter <span className="ml-1 text-[#C94C4C]">*</span>
                     </label>
 
                     <input
@@ -453,10 +373,7 @@ const Documents = () => {
                 </div>
               </div>
 
-              {/* -----------------------------------------------
-                  BENEFIT SCHEDULE UPLOAD
-              ------------------------------------------------ */}
-
+              {/* Benefit Schedule Upload */}
               <div className="border-t border-[#D5E2DA] px-6 py-6">
                 <div className="mb-5">
                   <h3 className="text-sm font-semibold text-[#12352B]">
@@ -464,12 +381,9 @@ const Documents = () => {
                   </h3>
 
                   <p className="mt-1 text-xs text-[#74827B]">
-                    Upload the original benefit schedule received from the
-                    insurer.
+                    Upload the original benefit schedule received from the insurer.
                   </p>
                 </div>
-
-                {/* Upload area */}
 
                 <div
                   onDragEnter={handleDragEnter}
@@ -490,9 +404,7 @@ const Documents = () => {
                     Drag and drop your benefit schedule here
                   </h4>
 
-                  <p className="mt-1 text-sm text-[#74827B]">
-                    or
-                  </p>
+                  <p className="mt-1 text-sm text-[#74827B]">or</p>
 
                   <button
                     type="button"
@@ -514,10 +426,6 @@ const Documents = () => {
                     className="hidden"
                   />
                 </div>
-
-                {/* ---------------------------------------------
-                    SELECTED FILE
-                ---------------------------------------------- */}
 
                 {selectedFile && (
                   <div className="mt-4 rounded-xl border border-[#D5E2DA] bg-[#F8FAF8] p-4">
@@ -544,7 +452,11 @@ const Documents = () => {
 
                       <button
                         type="button"
-                        onClick={() => setSelectedFile(null)}
+                        onClick={() => {
+                          setSelectedFile(null);
+                          setProjectCreated(false);
+                          setCreatedProject(null);
+                        }}
                         className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[#74827B] transition hover:bg-[#EAF0EC] hover:text-[#C94C4C]"
                         title="Remove file"
                       >
@@ -552,21 +464,12 @@ const Documents = () => {
                       </button>
                     </div>
 
-                    {/* Valid file */}
-
                     <div className="mt-3 flex items-center gap-2 text-xs text-[#1E5A45]">
                       <CheckCircle2 size={15} />
-
-                      <span>
-                        File format is valid and ready for upload.
-                      </span>
+                      <span>File format is valid and ready for upload.</span>
                     </div>
                   </div>
                 )}
-
-                {/* ---------------------------------------------
-                    PDF WARNING
-                ---------------------------------------------- */}
 
                 {isPdf && (
                   <div className="mt-4 flex gap-3 rounded-xl border border-[#E6D8AE] bg-[#FFFCF3] p-4">
@@ -590,62 +493,46 @@ const Documents = () => {
                 )}
               </div>
 
-              {/* -----------------------------------------------
-                  INITIAL PROJECT STATE
-              ------------------------------------------------ */}
-
+              {/* Initial Project State */}
               <div className="border-t border-[#D5E2DA] bg-[#FBFCFA] px-6 py-5">
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                  {/* Version */}
-
                   <div className="rounded-lg border border-[#D5E2DA] bg-white p-4">
                     <p className="text-xs font-medium uppercase tracking-wide text-[#829089]">
                       Initial Version
                     </p>
-
                     <p className="mt-1 text-sm font-semibold text-[#12352B]">
                       v0.0
                     </p>
                   </div>
 
-                  {/* State */}
-
                   <div className="rounded-lg border border-[#D5E2DA] bg-white p-4">
                     <p className="text-xs font-medium uppercase tracking-wide text-[#829089]">
                       State
                     </p>
-
                     <p className="mt-1 text-sm font-semibold text-[#12352B]">
                       Raw Upload
                     </p>
                   </div>
 
-                  {/* Status */}
-
                   <div className="rounded-lg border border-[#D5E2DA] bg-white p-4">
                     <p className="text-xs font-medium uppercase tracking-wide text-[#829089]">
                       Status
                     </p>
-
                     <p className="mt-1 text-sm font-semibold text-[#1E5A45]">
                       Import Pending
                     </p>
                   </div>
                 </div>
 
-                {/* Original file information */}
-
                 <div className="mt-4 flex items-start gap-3 rounded-lg border border-[#D5E2DA] bg-white p-4">
                   <FolderOpen
                     size={18}
                     className="mt-0.5 shrink-0 text-[#1E5A45]"
                   />
-
                   <div>
                     <p className="text-sm font-medium text-[#30443B]">
                       Original file will remain untouched
                     </p>
-
                     <p className="mt-1 text-xs leading-5 text-[#74827B]">
                       The uploaded source document is stored as the raw
                       version. Extraction and mapping happen after the
@@ -654,19 +541,15 @@ const Documents = () => {
                   </div>
                 </div>
 
-                {/* Project ID */}
-
                 <div className="mt-4 flex items-start gap-3 rounded-lg border border-[#D5E2DA] bg-white p-4">
                   <CheckCircle2
                     size={18}
                     className="mt-0.5 shrink-0 text-[#1E5A45]"
                   />
-
                   <div>
                     <p className="text-sm font-medium text-[#30443B]">
                       Project ID generated automatically
                     </p>
-
                     <p className="mt-1 text-xs leading-5 text-[#74827B]">
                       A unique Benefit Schedule project ID will be generated
                       when the project is created.
@@ -675,10 +558,28 @@ const Documents = () => {
                 </div>
               </div>
 
-              {/* -----------------------------------------------
-                  FORM ACTIONS
-              ------------------------------------------------ */}
+              {/* Success Confirmation */}
+              {projectCreated && createdProject && (
+                <div className="mx-6 mb-4 flex items-start gap-3 rounded-lg border border-[#BFD8C9] bg-[#E8F2EC] p-4">
+                  <CheckCircle2
+                    size={22}
+                    className="mt-0.5 shrink-0 text-[#1E5A45]"
+                  />
+                  <div>
+                    <p className="text-sm font-semibold text-[#164A38]">
+                      Project submitted successfully
+                    </p>
+                    <p className="mt-1 text-sm text-[#385348]">
+                      {createdProject.projectId} — {createdProject.fileName}
+                    </p>
+                    <p className="mt-1 text-xs text-[#53645B]">
+                      Your project is ready for the next step.
+                    </p>
+                  </div>
+                </div>
+              )}
 
+              {/* Form Actions */}
               <div className="flex items-center justify-end gap-3 border-t border-[#D5E2DA] bg-white px-6 py-5">
                 <button
                   type="button"
@@ -688,26 +589,33 @@ const Documents = () => {
                   Clear
                 </button>
 
-                <button
-                  type="submit"
-                  className="inline-flex items-center gap-2 rounded-lg bg-[#1E5A45] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#164A38]"
-                >
-                  Create Project
-                  <ArrowRight size={16} />
-                </button>
+                {!projectCreated ? (
+                  <button
+                    type="submit"
+                    className="inline-flex items-center gap-2 rounded-lg bg-[#1E5A45] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#164A38]"
+                  >
+                    Create Project
+                    <ArrowRight size={16} />
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleValidate}
+                    className="inline-flex items-center gap-2 rounded-lg bg-[#1E5A45] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#164A38]"
+                  >
+                    <CheckCircle2 size={18} />
+                    Validate
+                    <ArrowRight size={16} />
+                  </button>
+                )}
               </div>
             </form>
           </div>
         )}
       </div>
 
-      {/* =====================================================
-          PREVIOUS PROJECTS
-      ====================================================== */}
-
+      {/* Previous Projects */}
       <section>
-        {/* Section header */}
-
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <div className="flex items-center gap-2">
@@ -725,8 +633,6 @@ const Documents = () => {
             </p>
           </div>
 
-          {/* Search */}
-
           <div className="relative w-full sm:w-80">
             <Search
               size={17}
@@ -743,10 +649,7 @@ const Documents = () => {
           </div>
         </div>
 
-        {/* ===================================================
-            PROJECT TABLE
-        ==================================================== */}
-
+        {/* Projects Table */}
         <div className="overflow-hidden rounded-xl border border-[#D5E2DA] bg-white shadow-sm">
           <div className="overflow-x-auto">
             <table className="w-full min-w-[950px] border-collapse">
@@ -755,31 +658,24 @@ const Documents = () => {
                   <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wide text-[#66756D]">
                     Project ID
                   </th>
-
                   <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wide text-[#66756D]">
                     Client
                   </th>
-
                   <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wide text-[#66756D]">
                     Source Insurer
                   </th>
-
                   <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wide text-[#66756D]">
                     Assigned UW
                   </th>
-
                   <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wide text-[#66756D]">
                     Version
                   </th>
-
                   <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wide text-[#66756D]">
                     State
                   </th>
-
                   <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wide text-[#66756D]">
                     Status
                   </th>
-
                   <th className="px-5 py-4 text-right text-xs font-semibold uppercase tracking-wide text-[#66756D]">
                     Action
                   </th>
@@ -793,8 +689,6 @@ const Documents = () => {
                       key={item.projectId}
                       className="border-b border-[#EDF1EE] transition hover:bg-[#FBFCFA]"
                     >
-                      {/* Project ID */}
-
                       <td className="px-5 py-4">
                         <button
                           type="button"
@@ -804,15 +698,11 @@ const Documents = () => {
                         </button>
                       </td>
 
-                      {/* Client */}
-
                       <td className="px-5 py-4">
                         <p className="text-sm font-medium text-[#24302B]">
                           {item.clientName}
                         </p>
                       </td>
-
-                      {/* Insurer */}
 
                       <td className="px-5 py-4">
                         <p className="text-sm text-[#53645B]">
@@ -820,15 +710,11 @@ const Documents = () => {
                         </p>
                       </td>
 
-                      {/* UW */}
-
                       <td className="px-5 py-4">
                         <p className="text-sm text-[#53645B]">
                           {item.assignedUW}
                         </p>
                       </td>
-
-                      {/* Version */}
 
                       <td className="px-5 py-4">
                         <span className="rounded-md bg-[#F1F5F2] px-2.5 py-1 text-xs font-semibold text-[#385348]">
@@ -836,15 +722,11 @@ const Documents = () => {
                         </span>
                       </td>
 
-                      {/* State */}
-
                       <td className="px-5 py-4">
                         <span className="text-sm text-[#53645B]">
                           {item.state}
                         </span>
                       </td>
-
-                      {/* Status */}
 
                       <td className="px-5 py-4">
                         <span
@@ -855,8 +737,6 @@ const Documents = () => {
                           {item.status}
                         </span>
                       </td>
-
-                      {/* Action */}
 
                       <td className="px-5 py-4 text-right">
                         <button
@@ -889,8 +769,6 @@ const Documents = () => {
               </tbody>
             </table>
           </div>
-
-          {/* Table footer */}
 
           <div className="flex items-center justify-between border-t border-[#D5E2DA] bg-[#FBFCFA] px-5 py-3">
             <p className="text-xs text-[#74827B]">

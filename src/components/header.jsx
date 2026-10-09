@@ -32,16 +32,16 @@ const Header = ({ darkMode, toggleTheme }) => {
         ${
           darkMode
             ? `
-              bg-gradient-to-r
+              bg-linear-to-r
               from-[#0B241C]
-              via-[#12352B]
-              to-[#1E5A45]
-              border-[#1E5A45]
+              via-forest-dark[#12352B]
+              to-forest[#1E5A45]
+              border-forest[#1E5A45]
             `
             : `
-              bg-gradient-to-r
+              bg-linear-to-r
               from-[#E8F2EC]
-              via-[#DCEFE3]
+              via-mint[#DCEFE3]
               to-[#A8D5BA]
               border-[#D5E2DA]
             `
@@ -75,8 +75,8 @@ const Header = ({ darkMode, toggleTheme }) => {
               hover:scale-105
               ${
                 darkMode
-                  ? "bg-[#E8F2EC] text-[#12352B]"
-                  : "bg-white/90 text-[#1E5A45]"
+                  ? "bg-[#E8F2EC] text-forest-dark[#12352B]"
+                  : "bg-white/90 text-forest[#1E5A45]"
               }
             `}
           >
@@ -97,7 +97,7 @@ const Header = ({ darkMode, toggleTheme }) => {
                 ${
                   darkMode
                     ? "text-white"
-                    : "text-[#12352B]"
+                    : "text-forest-dark[#12352B]"
                 }
               `}
             >
@@ -110,8 +110,8 @@ const Header = ({ darkMode, toggleTheme }) => {
                 font-semibold
                 ${
                   darkMode
-                    ? "text-[#DCEFE3]"
-                    : "text-[#1E5A45]"
+                    ? "text-mint[#DCEFE3]"
+                    : "text-forest[#1E5A45]"
                 }
               `}
             >
@@ -144,8 +144,8 @@ const Header = ({ darkMode, toggleTheme }) => {
                 duration-300
                 ${
                   darkMode
-                    ? "text-[#DCEFE3]"
-                    : "text-[#1E5A45]"
+                    ? "text-mint[#DCEFE3]"
+                    : "text-forest[#1E5A45]"
                 }
               `}
             />
@@ -169,22 +169,22 @@ const Header = ({ darkMode, toggleTheme }) => {
                 ${
                   darkMode
                     ? `
-                      bg-[#12352B]/50
+                      bg-forest-dark[#12352B]/50
                       border-white/20
                       text-white
-                      placeholder:text-[#DCEFE3]
-                      focus:border-[#A8D5BA]
+                      placeholder:text-mint[#DCEFE3]
+                      focus:border-forest[#A8D5BA]
                       focus:ring-1
-                      focus:ring-[#A8D5BA]
+                      focus:ring-forest[#A8D5BA]
                     `
                     : `
                       bg-white/75
-                      border-[#D5E2DA]
-                      text-[#12352B]
-                      placeholder:text-[#1E5A45]
-                      focus:border-[#1E5A45]
+                      border-forest[#D5E2DA]
+                      text-forest-dark[#12352B]
+                      placeholder:text-forest[#1E5A45]
+                      focus:border-forest[#1E5A45]
                       focus:ring-1
-                      focus:ring-[#1E5A45]
+                      focus:ring-forest[#1E5A45]
                     `
                 }
               `}
@@ -217,14 +217,14 @@ const Header = ({ darkMode, toggleTheme }) => {
               ${
                 darkMode
                   ? `
-                    bg-[#E8F2EC]
-                    text-[#12352B]
+                    bg-mint[#E8F2EC]
+                    text-forest-dark[#12352B]
                     hover:bg-white
                   `
                   : `
-                    bg-[#12352B]
+                    bg-forest-dark[#12352B]
                     text-white
-                    hover:bg-[#1E5A45]
+                    hover:bg-forest[#1E5A45]
                   `
               }
             `}
@@ -256,7 +256,7 @@ const Header = ({ darkMode, toggleTheme }) => {
                 ${
                   darkMode
                     ? "border-white/20"
-                    : "border-[#D5E2DA]"
+                    : "border-forest[#D5E2DA]"
                 }
               `}
             >
@@ -276,8 +276,8 @@ const Header = ({ darkMode, toggleTheme }) => {
                   hover:scale-105
                   ${
                     darkMode
-                      ? "bg-[#E8F2EC] text-[#12352B]"
-                      : "bg-white text-[#1E5A45]"
+                      ? "bg-mint[#E8F2EC] text-forest-dark[#12352B]"
+                      : "bg-white text-forest[#1E5A45]"
                   }
                 `}
               >
@@ -295,7 +295,7 @@ const Header = ({ darkMode, toggleTheme }) => {
                     ${
                       darkMode
                         ? "text-white"
-                        : "text-[#12352B]"
+                        : "text-forest-dark[#12352B]"
                     }
                   `}
                 >
@@ -308,8 +308,8 @@ const Header = ({ darkMode, toggleTheme }) => {
                     font-medium
                     ${
                       darkMode
-                        ? "text-[#DCEFE3]"
-                        : "text-[#1E5A45]"
+                        ? "text-mint[#DCEFE3]"
+                        : "text-forest[#1E5A45]"
                     }
                   `}
                 >
@@ -332,8 +332,8 @@ const Header = ({ darkMode, toggleTheme }) => {
                   }
                   ${
                     darkMode
-                      ? "text-[#DCEFE3]"
-                      : "text-[#12352B]"
+                      ? "text-mint[#DCEFE3]"
+                      : "text-forest-dark[#12352B]"
                   }
                 `}
               />
