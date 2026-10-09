@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   AlertTriangle,
   ChevronDown,
+  ArrowRight,
 } from "lucide-react";
 
 const initialBenefits = [
@@ -64,12 +65,8 @@ function Pricing() {
   const navigate = useNavigate();
 
   const [benefits] = useState(initialBenefits);
-
   const [commission, setCommission] = useState("5");
-
-  const [selectedOption, setSelectedOption] =
-    useState("option2");
-
+  const [selectedOption, setSelectedOption] = useState("option2");
   const [saved, setSaved] = useState(false);
 
   const premiums = {
@@ -78,337 +75,275 @@ function Pricing() {
     option3: "$1,720",
   };
 
-  const savePricing = () => {
-    setSaved(true);
+  const commissionValue = Number(commission);
 
-    setTimeout(() => {
-      setSaved(false);
-    }, 2500);
+  const validCommission =
+    commission.trim() !== "" &&
+    Number.isFinite(commissionValue) &&
+    commissionValue >= 0 &&
+    commissionValue <= 10;
+
+  const savePricing = () => {
+    if (!validCommission) {
+      return;
+    }
+
+    // Frontend save confirmation.
+    // Connect your save API here when backend persistence is available.
+    setSaved(true);
   };
 
   const goBack = () => {
     navigate("/underwriter/options");
   };
 
+  const proceedWithUnderwriting = () => {
+    navigate("/underwriter/work");
+  };
+
+  const handleCommissionChange = (event) => {
+    setCommission(event.target.value);
+    setSaved(false);
+  };
+
+  const handleOptionChange = (event) => {
+    setSelectedOption(event.target.value);
+    setSaved(false);
+  };
+
   return (
     <div className="min-h-full bg-[#f6f8f7]">
-
       {/* PAGE HEADER */}
-      <div className="px-7 pt-6 pb-4">
-
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-
+      <div className="px-7 pb-4 pt-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-3">
-
-            <div className="w-11 h-11 rounded-xl bg-[#dcefe9] flex items-center justify-center">
-
-              <Calculator
-                size={22}
-                className="text-[#006653]"
-              />
-
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#dcefe9]">
+              <Calculator size={22} className="text-[#006653]" />
             </div>
 
             <div>
-
               <h1 className="text-2xl font-semibold text-[#073f35]">
                 Pricing
               </h1>
-
-              <p className="text-sm text-gray-500 mt-1">
+              <p className="mt-1 text-sm text-gray-500">
                 Calculate and review premiums for each coverage option
               </p>
-
             </div>
-
           </div>
 
-
           <div className="flex items-center gap-3">
-
-            <span className="px-4 py-2 rounded-full bg-[#fff1d7] text-[#a56600] text-sm font-medium">
+            <span className="rounded-full bg-[#fff1d7] px-4 py-2 text-sm font-medium text-[#a56600]">
               Underwriting In Progress
             </span>
 
             <span className="text-sm text-gray-500">
               v0.2 · Draft
             </span>
-
           </div>
-
         </div>
-
       </div>
-
 
       {/* PROJECT INFORMATION */}
       <div className="px-7">
-
-        <div className="bg-white border border-[#d7e1de] rounded-xl p-5">
-
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
-
-            <InfoItem
-              label="Client"
-              value="ABC Corporation"
-            />
-
-            <InfoItem
-              label="Source Insurer"
-              value="Sagicor"
-            />
-
-            <InfoItem
-              label="Reference"
-              value="#SCH-1024"
-            />
-
-            <InfoItem
-              label="Version"
-              value="v0.2 · Draft"
-            />
-
+        <div className="rounded-xl border border-[#d7e1de] bg-white p-5">
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-4">
+            <InfoItem label="Client" value="ABC Corporation" />
+            <InfoItem label="Source Insurer" value="Sagicor" />
+            <InfoItem label="Reference" value="#SCH-1024" />
+            <InfoItem label="Version" value="v0.2 · Draft" />
           </div>
-
         </div>
-
       </div>
 
-
       {/* CONTENT */}
-      <div className="p-7 space-y-6">
-
-
-        {/* COMMISSION */}
-        <div className="bg-white border border-[#d7e1de] rounded-xl">
-
-          <div className="px-6 py-5 border-b border-[#d7e1de]">
-
+      <div className="space-y-6 p-7">
+        {/* PRICING CONFIGURATION */}
+        <div className="rounded-xl border border-[#d7e1de] bg-white">
+          <div className="border-b border-[#d7e1de] px-6 py-5">
             <h2 className="text-lg font-semibold text-[#073f35]">
               Pricing Configuration
             </h2>
 
-            <p className="text-sm text-gray-500 mt-1">
+            <p className="mt-1 text-sm text-gray-500">
               Configure the commission used for the premium calculation.
             </p>
-
           </div>
 
-
-          <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-6">
-
+          <div className="grid grid-cols-1 gap-6 p-6 md:grid-cols-3">
             <div>
-
-              <label className="text-sm font-medium text-gray-600">
+              <label
+                htmlFor="commission"
+                className="text-sm font-medium text-gray-600"
+              >
                 Commission Rate
               </label>
 
               <div className="relative mt-2">
-
                 <input
+                  id="commission"
                   type="number"
                   min="0"
                   max="10"
                   step="0.5"
                   value={commission}
-                  onChange={(e) =>
-                    setCommission(e.target.value)
-                  }
-                  className="w-full px-4 py-3 pr-10 border border-[#cddbd6] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#bde5d8] focus:border-[#00866c]"
+                  onChange={handleCommissionChange}
+                  className="w-full rounded-lg border border-[#cddbd6] px-4 py-3 pr-10 focus:border-[#00866c] focus:outline-none focus:ring-2 focus:ring-[#bde5d8]"
                 />
 
                 <span className="absolute right-4 top-3 text-gray-400">
                   %
                 </span>
-
               </div>
 
-              <p className="text-xs text-gray-400 mt-2">
+              <p className="mt-2 text-xs text-gray-400">
                 Allowed range: 0% – 10%
               </p>
 
+              {!validCommission && (
+                <p className="mt-2 text-xs text-red-600">
+                  Enter a commission rate between 0% and 10%.
+                </p>
+              )}
             </div>
 
-
             <div>
-
-              <label className="text-sm font-medium text-gray-600">
+              <label
+                htmlFor="coverageTier"
+                className="text-sm font-medium text-gray-600"
+              >
                 Coverage Tier
               </label>
 
               <div className="relative mt-2">
-
                 <select
+                  id="coverageTier"
                   value={selectedOption}
-                  onChange={(e) =>
-                    setSelectedOption(e.target.value)
-                  }
-                  className="appearance-none w-full px-4 py-3 pr-10 border border-[#cddbd6] rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#bde5d8]"
+                  onChange={handleOptionChange}
+                  className="w-full appearance-none rounded-lg border border-[#cddbd6] bg-white px-4 py-3 pr-10 focus:outline-none focus:ring-2 focus:ring-[#bde5d8]"
                 >
-
-                  <option value="option1">
-                    Option 1
-                  </option>
-
-                  <option value="option2">
-                    Option 2
-                  </option>
-
-                  <option value="option3">
-                    Option 3
-                  </option>
-
+                  <option value="option1">Option 1</option>
+                  <option value="option2">Option 2</option>
+                  <option value="option3">Option 3</option>
                 </select>
 
                 <ChevronDown
                   size={17}
-                  className="absolute right-4 top-3.5 text-gray-400 pointer-events-none"
+                  className="pointer-events-none absolute right-4 top-3.5 text-gray-400"
                 />
-
               </div>
-
             </div>
 
-
-            <div className="bg-[#eef8f4] rounded-lg p-4">
-
+            <div className="rounded-lg bg-[#eef8f4] p-4">
               <p className="text-xs text-gray-500">
                 Calculation Rule
               </p>
 
-              <p className="text-sm font-semibold text-[#006653] mt-2">
+              <p className="mt-2 text-sm font-semibold text-[#006653]">
                 Benefit Value × Commission
               </p>
 
-              <p className="text-xs text-gray-500 mt-2">
+              <p className="mt-2 text-xs text-gray-500">
                 Applied across all three coverage tiers.
               </p>
-
             </div>
-
           </div>
-
         </div>
 
-
-        {/* PREMIUM CARDS */}
+        {/* PREMIUM SUMMARY */}
         <div>
-
           <div className="mb-4">
-
             <h2 className="text-lg font-semibold text-[#073f35]">
               Premium Summary
             </h2>
 
-            <p className="text-sm text-gray-500 mt-1">
+            <p className="mt-1 text-sm text-gray-500">
               Premiums calculated for each proposal option.
             </p>
-
           </div>
 
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
             <PremiumCard
               title="Option 1"
               amount={premiums.option1}
               selected={selectedOption === "option1"}
-              onClick={() =>
-                setSelectedOption("option1")
-              }
+              onClick={() => {
+                setSelectedOption("option1");
+                setSaved(false);
+              }}
             />
 
             <PremiumCard
               title="Option 2"
               amount={premiums.option2}
               selected={selectedOption === "option2"}
-              onClick={() =>
-                setSelectedOption("option2")
-              }
+              onClick={() => {
+                setSelectedOption("option2");
+                setSaved(false);
+              }}
             />
 
             <PremiumCard
               title="Option 3"
               amount={premiums.option3}
               selected={selectedOption === "option3"}
-              onClick={() =>
-                setSelectedOption("option3")
-              }
+              onClick={() => {
+                setSelectedOption("option3");
+                setSaved(false);
+              }}
             />
-
           </div>
-
         </div>
 
-
         {/* PREMIUM BREAKDOWN */}
-        <div className="bg-white border border-[#d7e1de] rounded-xl overflow-hidden">
-
-          <div className="px-6 py-5 border-b border-[#d7e1de]">
-
+        <div className="overflow-hidden rounded-xl border border-[#d7e1de] bg-white">
+          <div className="border-b border-[#d7e1de] px-6 py-5">
             <h2 className="text-lg font-semibold text-[#073f35]">
               Premium Breakdown
             </h2>
 
-            <p className="text-sm text-gray-500 mt-1">
+            <p className="mt-1 text-sm text-gray-500">
               Review benefit values across all coverage tiers.
             </p>
-
           </div>
 
-
           <div className="overflow-x-auto">
-
             <table className="w-full min-w-[850px]">
-
               <thead>
-
                 <tr className="bg-[#f4f8f6]">
-
-                  <th className="text-left px-5 py-4 text-xs font-semibold text-gray-600 border-b">
+                  <th className="border-b px-5 py-4 text-left text-xs font-semibold text-gray-600">
                     Benefit
                   </th>
-
-                  <th className="text-left px-4 py-4 text-xs font-semibold text-gray-600 border-b">
+                  <th className="border-b px-4 py-4 text-left text-xs font-semibold text-gray-600">
                     Current
                   </th>
-
-                  <th className="text-left px-4 py-4 text-xs font-semibold text-[#006653] border-b">
+                  <th className="border-b px-4 py-4 text-left text-xs font-semibold text-[#006653]">
                     Option 1
                   </th>
-
-                  <th className="text-left px-4 py-4 text-xs font-semibold text-[#006653] border-b">
+                  <th className="border-b px-4 py-4 text-left text-xs font-semibold text-[#006653]">
                     Option 2
                   </th>
-
-                  <th className="text-left px-4 py-4 text-xs font-semibold text-[#006653] border-b">
+                  <th className="border-b px-4 py-4 text-left text-xs font-semibold text-[#006653]">
                     Option 3
                   </th>
-
                 </tr>
-
               </thead>
 
-
               <tbody>
-
                 {benefits.map((benefit) => (
-
                   <tr
                     key={benefit.id}
                     className="hover:bg-[#fafcfb]"
                   >
-
-                    <td className="px-5 py-4 border-b text-sm font-medium text-[#073f35]">
+                    <td className="border-b px-5 py-4 text-sm font-medium text-[#073f35]">
                       {benefit.name}
                     </td>
 
-                    <td className="px-4 py-4 border-b text-sm text-gray-500">
+                    <td className="border-b px-4 py-4 text-sm text-gray-500">
                       {benefit.current}
                     </td>
 
                     <td
-                      className={`px-4 py-4 border-b text-sm ${
+                      className={`border-b px-4 py-4 text-sm ${
                         selectedOption === "option1"
                           ? "font-semibold text-[#006653]"
                           : "text-gray-700"
@@ -418,7 +353,7 @@ function Pricing() {
                     </td>
 
                     <td
-                      className={`px-4 py-4 border-b text-sm ${
+                      className={`border-b px-4 py-4 text-sm ${
                         selectedOption === "option2"
                           ? "font-semibold text-[#006653]"
                           : "text-gray-700"
@@ -428,7 +363,7 @@ function Pricing() {
                     </td>
 
                     <td
-                      className={`px-4 py-4 border-b text-sm ${
+                      className={`border-b px-4 py-4 text-sm ${
                         selectedOption === "option3"
                           ? "font-semibold text-[#006653]"
                           : "text-gray-700"
@@ -436,106 +371,77 @@ function Pricing() {
                     >
                       {benefit.option3}
                     </td>
-
                   </tr>
-
                 ))}
-
               </tbody>
-
             </table>
-
           </div>
-
         </div>
 
-
         {/* CALCULATION SUMMARY */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
-
-          {/* SELECTED */}
-
-          <div className="bg-white border border-[#d7e1de] rounded-xl p-6">
-
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          {/* SELECTED PRICING */}
+          <div className="rounded-xl border border-[#d7e1de] bg-white p-6">
             <h2 className="font-semibold text-[#073f35]">
               Selected Pricing
             </h2>
 
-            <div className="mt-5 bg-[#eef8f4] rounded-xl p-5">
-
+            <div className="mt-5 rounded-xl bg-[#eef8f4] p-5">
               <div className="flex justify-between">
-
                 <div>
-
                   <p className="text-xs text-gray-500">
                     Selected Option
                   </p>
 
-                  <p className="text-xl font-bold text-[#006653] mt-1">
-
+                  <p className="mt-1 text-xl font-bold text-[#006653]">
                     {selectedOption === "option1"
                       ? "Option 1"
                       : selectedOption === "option2"
                       ? "Option 2"
                       : "Option 3"}
-
                   </p>
-
                 </div>
 
                 <CheckCircle2
                   size={26}
                   className="text-[#009879]"
                 />
-
               </div>
 
-
-              <div className="mt-5 pt-4 border-t border-[#cce9df]">
-
+              <div className="mt-5 border-t border-[#cce9df] pt-4">
                 <p className="text-xs text-gray-500">
                   Estimated Premium
                 </p>
 
-                <p className="text-3xl font-bold text-[#073f35] mt-1">
+                <p className="mt-1 text-3xl font-bold text-[#073f35]">
                   {premiums[selectedOption]}
                 </p>
-
               </div>
 
-
               <div className="mt-4">
-
                 <p className="text-xs text-gray-500">
                   Commission
                 </p>
 
-                <p className="text-sm font-semibold text-[#073f35] mt-1">
+                <p className="mt-1 text-sm font-semibold text-[#073f35]">
                   {commission}%
                 </p>
-
               </div>
-
             </div>
-
           </div>
 
-
-          {/* VALIDATION */}
-
-          <div className="bg-white border border-[#d7e1de] rounded-xl p-6">
-
+          {/* PRICING VALIDATION */}
+          <div className="rounded-xl border border-[#d7e1de] bg-white p-6">
             <h2 className="font-semibold text-[#073f35]">
               Pricing Validation
             </h2>
 
             <div className="mt-5 space-y-4">
-
               <ValidationRow
                 label="Commission rate"
-                value={`${commission}%`}
-                success
+                value={validCommission ? `${commission}%` : "Invalid"}
+                success={validCommission}
+                warning={!validCommission}
               />
 
               <ValidationRow
@@ -561,238 +467,167 @@ function Pricing() {
                 value="1"
                 warning
               />
-
             </div>
-
           </div>
-
         </div>
 
-
-        {/* WARNING */}
-
-        <div className="bg-[#fff9ee] border border-[#f0dfbd] rounded-xl p-5">
-
+        {/* PRICING NOTICE */}
+        <div className="rounded-xl border border-[#f0dfbd] bg-[#fff9ee] p-5">
           <div className="flex gap-3">
-
             <AlertTriangle
               size={20}
-              className="text-orange-500 shrink-0"
+              className="shrink-0 text-orange-500"
             />
 
             <div>
-
               <p className="text-sm font-semibold text-[#765000]">
                 Pricing Rule Notice
               </p>
 
-              <p className="text-xs text-gray-600 mt-1">
-                Premium calculation shown here is a frontend
-                prototype. The final calculation formula must
-                follow the approved business rules.
+              <p className="mt-1 text-xs text-gray-600">
+                Premium calculation shown here is a frontend prototype.
+                The final calculation formula must follow the approved
+                business rules.
               </p>
-
             </div>
-
           </div>
-
         </div>
-
 
         {/* ACTIONS */}
-
-        <div className="bg-white border border-[#d7e1de] rounded-xl p-5">
-
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-
+        <div className="rounded-xl border border-[#d7e1de] bg-white p-5">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <button
+              type="button"
               onClick={goBack}
-              className="flex items-center justify-center gap-2 px-5 py-3 border border-[#006653] text-[#006653] rounded-lg hover:bg-[#eef8f4] text-sm font-medium"
+              className="flex items-center justify-center gap-2 rounded-lg border border-[#006653] px-5 py-3 text-sm font-medium text-[#006653] hover:bg-[#eef8f4]"
             >
-
               <ArrowLeft size={18} />
-
               Back to Options
-
             </button>
 
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <button
+                type="button"
+                onClick={savePricing}
+                disabled={!validCommission}
+                className="flex items-center justify-center gap-2 rounded-lg bg-[#006653] px-6 py-3 text-sm font-medium text-white hover:bg-[#005344] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Save size={18} />
+                {saved ? "Pricing Saved" : "Save Pricing"}
+              </button>
 
-            <button
-              onClick={savePricing}
-              className="flex items-center justify-center gap-2 px-6 py-3 bg-[#006653] text-white rounded-lg hover:bg-[#005344] text-sm font-medium"
-            >
-
-              <Save size={18} />
-
-              {saved
-                ? "Pricing Saved"
-                : "Save Pricing"}
-
-            </button>
-
+              {saved && (
+                <button
+                  type="button"
+                  onClick={proceedWithUnderwriting}
+                  className="flex items-center justify-center gap-2 rounded-lg bg-[#073f35] px-6 py-3 text-sm font-medium text-white hover:bg-[#052f28]"
+                >
+                  Proceed with Underwriting
+                  <ArrowRight size={18} />
+                </button>
+              )}
+            </div>
           </div>
 
+          {saved && (
+            <p
+              role="status"
+              className="mt-4 text-sm font-medium text-[#00856b]"
+            >
+              <CheckCircle2
+                size={16}
+                className="mr-1 inline"
+              />
+              Pricing saved successfully. You can now proceed to
+              underwriting.
+            </p>
+          )}
         </div>
-
       </div>
-
     </div>
   );
 }
 
-
-/* ============================================================
-   INFO ITEM
-   ============================================================ */
-
-function InfoItem({
-  label,
-  value,
-}) {
+/* INFO ITEM */
+function InfoItem({ label, value }) {
   return (
     <div>
-
-      <p className="text-xs text-gray-500 mb-1">
-        {label}
-      </p>
-
-      <p className="text-sm font-semibold text-[#073f35]">
-        {value}
-      </p>
-
+      <p className="mb-1 text-xs text-gray-500">{label}</p>
+      <p className="text-sm font-semibold text-[#073f35]">{value}</p>
     </div>
   );
 }
 
-
-/* ============================================================
-   PREMIUM CARD
-   ============================================================ */
-
-function PremiumCard({
-  title,
-  amount,
-  selected,
-  onClick,
-}) {
+/* PREMIUM CARD */
+function PremiumCard({ title, amount, selected, onClick }) {
   return (
     <button
+      type="button"
       onClick={onClick}
-      className={`relative text-left bg-white rounded-xl border p-6 w-full transition ${
+      className={`relative w-full rounded-xl border bg-white p-6 text-left transition ${
         selected
           ? "border-[#009879] ring-2 ring-[#d8f1e8]"
           : "border-[#d7e1de] hover:border-[#009879]"
       }`}
     >
-
       <div className="flex items-center justify-between">
-
         <div>
-
-          <p className="text-xs text-gray-500">
-            Coverage Tier
-          </p>
-
-          <h3 className="text-lg font-semibold text-[#073f35] mt-1">
+          <p className="text-xs text-gray-500">Coverage Tier</p>
+          <h3 className="mt-1 text-lg font-semibold text-[#073f35]">
             {title}
           </h3>
-
         </div>
 
-
         {selected && (
-          <div className="w-7 h-7 rounded-full bg-[#009879] flex items-center justify-center">
-
-            <CheckCircle2
-              size={17}
-              className="text-white"
-            />
-
+          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#009879]">
+            <CheckCircle2 size={17} className="text-white" />
           </div>
         )}
-
       </div>
-
 
       <div className="mt-6">
-
-        <p className="text-xs text-gray-500">
-          Estimated Premium
-        </p>
-
-        <p className="text-3xl font-bold text-[#073f35] mt-1">
+        <p className="text-xs text-gray-500">Estimated Premium</p>
+        <p className="mt-1 text-3xl font-bold text-[#073f35]">
           {amount}
         </p>
-
       </div>
-
 
       <div
         className={`mt-5 text-sm font-medium ${
-          selected
-            ? "text-[#006653]"
-            : "text-gray-500"
+          selected ? "text-[#006653]" : "text-gray-500"
         }`}
       >
-        {selected
-          ? "Selected for proposal"
-          : "Select this option"}
+        {selected ? "Selected for proposal" : "Select this option"}
       </div>
-
     </button>
   );
 }
 
-
-/* ============================================================
-   VALIDATION ROW
-   ============================================================ */
-
-function ValidationRow({
-  label,
-  value,
-  success,
-  warning,
-}) {
+/* VALIDATION ROW */
+function ValidationRow({ label, value, success, warning }) {
   return (
-    <div className="flex items-center justify-between">
-
+    <div className="flex items-center justify-between gap-3">
       <div className="flex items-center gap-2">
-
         {success && (
-          <CheckCircle2
-            size={17}
-            className="text-[#009879]"
-          />
+          <CheckCircle2 size={17} className="text-[#009879]" />
         )}
 
         {warning && (
-          <AlertTriangle
-            size={17}
-            className="text-orange-500"
-          />
+          <AlertTriangle size={17} className="text-orange-500" />
         )}
 
-        <span className="text-sm text-gray-600">
-          {label}
-        </span>
-
+        <span className="text-sm text-gray-600">{label}</span>
       </div>
-
 
       <span
         className={`text-xs font-medium ${
-          success
-            ? "text-[#00856b]"
-            : "text-orange-600"
+          success ? "text-[#00856b]" : "text-orange-600"
         }`}
       >
         {value}
       </span>
-
     </div>
   );
 }
-
 
 export default Pricing;

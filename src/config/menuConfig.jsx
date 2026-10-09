@@ -45,31 +45,37 @@ export const menuConfig = {
       route: "/underwriter/benefits",
       icon: HeartPulse,
     },
-    {
-      name: "Validations",
-      route: "/underwriter/validations",
-      icon: CheckCircle2,
-    },
+
     {
       name: "Exceptions",
       route: "/underwriter/exceptions",
       icon: AlertTriangle,
     },
+    
     {
-      name: "Underwriting",
-      route: "/underwriter/work",
-      icon: ClipboardCheck,
+      name: "Validations",
+      route: "/underwriter/validations",
+      icon: CheckCircle2,
     },
-    {
+
+     {
       name: "Options",
       route: "/underwriter/options",
       icon: Layers3,
     },
+
     {
       name: "Pricing",
       route: "/underwriter/pricing",
       icon: DollarSign,
     },
+
+    {
+      name: "Underwriting",
+      route: "/underwriter/work",
+      icon: ClipboardCheck,
+    },
+  
     {
       name: "Sales Approval",
       route: "/underwriter/sales-approval",

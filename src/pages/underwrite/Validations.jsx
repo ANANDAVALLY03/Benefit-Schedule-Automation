@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import {
   CheckCircle2,
   AlertTriangle,
@@ -11,947 +12,496 @@ import {
 } from "lucide-react";
 
 const Validations = () => {
-  const [validated, setValidated] = useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const [validated, setValidated] = useState(true);
   const [expandedSection, setExpandedSection] = useState("mandatory");
 
-  const [validationData] = useState({
-    mandatoryFields: [
-      {
-        id: 1,
-        field: "Client Name",
-        value: "ABC Corporation",
-        status: "Valid",
-      },
-      {
-        id: 2,
-        field: "Source Insurer",
-        value: "Aetna",
-        status: "Valid",
-      },
-      {
-        id: 3,
-        field: "Assigned Underwriter",
-        value: "John Doe",
-        status: "Valid",
-      },
-      {
-        id: 4,
-        field: "Effective Date",
-        value: "03 Jan 2027",
-        status: "Valid",
-      },
-      {
-        id: 5,
-        field: "Benefit Schedule",
-        value: "Medical_Benefit.pdf",
-        status: "Valid",
-      },
-    ],
+  const passedResults = location.state?.validationResults ?? [];
 
-    options: [
-      {
-        id: 1,
-        benefit: "Hospital",
-        option1: "$12,000",
-        option2: "$15,000",
-        option3: "$20,000",
-        status: "Valid",
+  // Default validation data
+  const validationData = useMemo(
+    () => ({
+      mandatory: {
+        title: "Mandatory Fields",
+        description: "Check that all required benefit fields are populated.",
+        items: [
+          {
+            name: "Benefit Name",
+            status: "passed",
+            message: "Benefit name is available.",
+          },
+          {
+            name: "Benefit Type",
+            status: "passed",
+            message: "Benefit type is available.",
+          },
+          {
+            name: "Coverage Amount",
+            status: "passed",
+            message: "Coverage amount is available.",
+          },
+          {
+            name: "Effective Date",
+            status: "passed",
+            message: "Effective date is available.",
+          },
+        ],
       },
-      {
-        id: 2,
-        benefit: "Dental",
-        option1: "80%",
-        option2: "90%",
-        option3: "100%",
-        status: "Valid",
+      options: {
+        title: "Benefit Options",
+        description: "Check benefit options and their configured values.",
+        items: [
+          {
+            name: "Medical Coverage",
+            status: "passed",
+            message: "Medical coverage option is configured.",
+          },
+          {
+            name: "Dependent Coverage",
+            status: "passed",
+            message: "Dependent coverage option is configured.",
+          },
+          {
+            name: "Optional Benefits",
+            status: "review",
+            message: "Review optional benefit configuration.",
+          },
+        ],
       },
-      {
-        id: 3,
-        benefit: "Maternity",
-        option1: "100%",
-        option2: "100%",
-        option3: "100%",
-        status: "Valid",
+      mapping: {
+        title: "Field Mapping",
+        description: "Check the mapping between source and target fields.",
+        items: [
+          {
+            name: "Benefit Name Mapping",
+            status: "passed",
+            message: "Source and target fields are mapped.",
+          },
+          {
+            name: "Coverage Mapping",
+            status: "passed",
+            message: "Coverage fields are mapped.",
+          },
+          {
+            name: "Date Mapping",
+            status: "error",
+            message: "Verify the effective date mapping.",
+          },
+        ],
       },
-      {
-        id: 4,
-        benefit: "Vision",
-        option1: "",
-        option2: "80%",
-        option3: "90%",
-        status: "Error",
-      },
-      {
-        id: 5,
-        benefit: "CAT Scan",
-        option1: "N/A",
-        option2: "N/A",
-        option3: "N/A",
-        status: "Valid",
-      },
-    ],
+    }),
+    []
+  );
 
-    mapping: [
-      {
-        id: 1,
-        benefit: "Hospital",
-        mappedColumn: "Hospital Coverage",
-        status: "Valid",
+  // Use results passed from the Benefits page when available.
+  const sections = useMemo(() => {
+    if (!Array.isArray(passedResults) || passedResults.length === 0) {
+      return validationData;
+    }
+
+    const normalized = passedResults.map((item, index) => {
+      const rawStatus = String(
+        item.status ?? item.result ?? item.validationStatus ?? ""
+      ).toLowerCase();
+
+      let status = "passed";
+
+      if (
+        rawStatus.includes("error") ||
+        rawStatus.includes("fail") ||
+        rawStatus.includes("invalid")
+      ) {
+        status = "error";
+      } else if (
+        rawStatus.includes("review") ||
+        rawStatus.includes("warning") ||
+        rawStatus.includes("pending")
+      ) {
+        status = "review";
+      }
+
+      return {
+        name:
+          item.name ??
+          item.field ??
+          item.fieldName ??
+          item.message ??
+          `Validation ${index + 1}`,
+        status,
+        message:
+          item.message ??
+          item.description ??
+          item.details ??
+          "Validation check completed.",
+      };
+    });
+
+    return {
+      mandatory: {
+        title: "Mandatory Fields",
+        description: "Required field validation results.",
+        items: normalized,
       },
-      {
-        id: 2,
-        benefit: "Dental",
-        mappedColumn: "Dental Coverage",
-        status: "Valid",
+      options: {
+        title: "Benefit Options",
+        description: "Benefit option validation results.",
+        items: [],
       },
-      {
-        id: 3,
-        benefit: "Maternity",
-        mappedColumn: "Maternity Coverage",
-        status: "Valid",
+      mapping: {
+        title: "Field Mapping",
+        description: "Field mapping validation results.",
+        items: [],
       },
-      {
-        id: 4,
-        benefit: "Vision",
-        mappedColumn: "Vision Coverage",
-        status: "Valid",
-      },
-      {
-        id: 5,
-        benefit: "CAT Scan",
-        mappedColumn: "CAT Scan Coverage",
-        status: "Valid",
-      },
-    ],
+    };
+  }, [passedResults, validationData]);
+
+  const getSectionStats = (items) => ({
+    total: items.length,
+    passed: items.filter((item) => item.status === "passed").length,
+    review: items.filter((item) => item.status === "review").length,
+    errors: items.filter((item) => item.status === "error").length,
   });
 
-  const mandatoryValid = validationData.mandatoryFields.filter(
-    (item) => item.status === "Valid"
-  ).length;
+  const mandatoryStats = getSectionStats(sections.mandatory.items);
+  const optionStats = getSectionStats(sections.options.items);
+  const mappingStats = getSectionStats(sections.mapping.items);
 
-  const mandatoryTotal = validationData.mandatoryFields.length;
-
-  const optionValid = validationData.options.filter(
-    (item) => item.status === "Valid"
-  ).length;
-
-  const optionTotal = validationData.options.length;
-
-  const mappingValid = validationData.mapping.filter(
-    (item) => item.status === "Valid"
-  ).length;
-
-  const mappingTotal = validationData.mapping.length;
-
-  const issueCount =
-    mandatoryTotal -
-    mandatoryValid +
-    (optionTotal - optionValid) +
-    (mappingTotal - mappingValid);
-
-  const totalChecks = mandatoryTotal + optionTotal + mappingTotal;
+  const totalChecks =
+    mandatoryStats.total + optionStats.total + mappingStats.total;
 
   const passedChecks =
-    mandatoryValid + optionValid + mappingValid;
+    mandatoryStats.passed + optionStats.passed + mappingStats.passed;
+
+  const reviewCount =
+    mandatoryStats.review + optionStats.review + mappingStats.review;
+
+  const errorCount =
+    mandatoryStats.errors + optionStats.errors + mappingStats.errors;
+
+  const issueCount = reviewCount + errorCount;
 
   const validationPercentage =
     totalChecks > 0
       ? Math.round((passedChecks / totalChecks) * 100)
       : 0;
 
-  const validationPassed = issueCount === 0;
+  const validationPassed = totalChecks > 0 && issueCount === 0;
 
   const handleValidate = () => {
     setValidated(true);
   };
 
-  const toggleSection = (section) => {
-    setExpandedSection((prev) =>
-      prev === section ? "" : section
+  // Return to Benefits to make changes and validate again.
+  const handleRevalidate = () => {
+    navigate("/underwriter/benefits", {
+      state: {
+        project: location.state?.project ?? null,
+        file: location.state?.file ?? null,
+      },
+    });
+  };
+
+  // Open the Exceptions page.
+  const handleViewExceptions = () => {
+    navigate("/underwriter/exceptions", {
+      state: {
+        project: location.state?.project ?? null,
+        file: location.state?.file ?? null,
+        validationResults: passedResults,
+      },
+    });
+  };
+
+  // Move to the Options page.
+  const handleNext = () => {
+    navigate("/underwriter/options", {
+      state: {
+        ...location.state,
+        validationResults: passedResults,
+        validationSummary: {
+          totalChecks,
+          passedChecks,
+          reviewCount,
+          errorCount,
+          validationPercentage,
+          validationPassed,
+        },
+      },
+    });
+  };
+
+  const renderStatusIcon = (status) => {
+    if (status === "passed") {
+      return <CheckCircle2 size={18} className="text-green-600" />;
+    }
+
+    if (status === "review") {
+      return <AlertTriangle size={18} className="text-amber-500" />;
+    }
+
+    return <XCircle size={18} className="text-red-600" />;
+  };
+
+  const renderSection = (key, section) => {
+    const stats = getSectionStats(section.items);
+    const isExpanded = expandedSection === key;
+
+    return (
+      <div
+        key={key}
+        className="overflow-hidden rounded-xl border border-slate-200 bg-white"
+      >
+        <button
+          type="button"
+          onClick={() => setExpandedSection(isExpanded ? "" : key)}
+          className="flex w-full items-center justify-between gap-4 p-5 text-left hover:bg-slate-50"
+        >
+          <div className="flex min-w-0 items-center gap-3">
+            <FileCheck2
+              size={21}
+              className="shrink-0 text-[#1E5A45]"
+            />
+
+            <div>
+              <h3 className="font-semibold text-slate-800">
+                {section.title}
+              </h3>
+              <p className="mt-1 text-sm text-slate-500">
+                {section.description}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex shrink-0 items-center gap-3">
+            <span className="hidden text-sm text-slate-500 sm:inline">
+              {stats.passed}/{stats.total} passed
+            </span>
+
+            {stats.errors > 0 && (
+              <span className="rounded-full bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700">
+                {stats.errors} errors
+              </span>
+            )}
+
+            {stats.review > 0 && (
+              <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700">
+                {stats.review} review
+              </span>
+            )}
+
+            {isExpanded ? (
+              <ChevronUp size={18} className="text-slate-500" />
+            ) : (
+              <ChevronDown size={18} className="text-slate-500" />
+            )}
+          </div>
+        </button>
+
+        {isExpanded && (
+          <div className="border-t border-slate-200">
+            {section.items.length === 0 ? (
+              <div className="p-5 text-sm text-slate-500">
+                No checks are available in this section.
+              </div>
+            ) : (
+              section.items.map((item, index) => (
+                <div
+                  key={`${key}-${item.name}-${index}`}
+                  className="flex items-start gap-3 border-b border-slate-100 p-4 last:border-b-0"
+                >
+                  <div className="mt-0.5">
+                    {renderStatusIcon(item.status)}
+                  </div>
+
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-slate-800">
+                      {item.name}
+                    </p>
+                    <p className="mt-1 text-sm text-slate-500">
+                      {item.message}
+                    </p>
+                  </div>
+
+                  <span
+                    className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${
+                      item.status === "passed"
+                        ? "bg-green-50 text-green-700"
+                        : item.status === "review"
+                        ? "bg-amber-50 text-amber-700"
+                        : "bg-red-50 text-red-700"
+                    }`}
+                  >
+                    {item.status === "passed"
+                      ? "Passed"
+                      : item.status === "review"
+                      ? "Review"
+                      : "Error"}
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+      </div>
     );
   };
 
   return (
-    <div className="min-h-[calc(100vh-5rem)] bg-[#F7F5EF] p-6 lg:p-8">
-
-      {/* PAGE HEADER */}
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6">
-
+    <div className="min-h-full space-y-6 bg-[#F4F8FC] p-4 md:p-6">
+      {/* Page heading */}
+      <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
         <div>
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-xl bg-[#DCEFE3] text-[#1E5A45] flex items-center justify-center">
-              <FileCheck2 size={23} />
-            </div>
-
-            <div>
-              <h1 className="text-2xl font-bold text-[#12352B]">
-                Validations
-              </h1>
-
-              <p className="text-sm text-[#60756B] mt-1">
-                Validate the benefit schedule before proceeding to PDF generation.
-              </p>
-            </div>
-          </div>
+          <h1 className="text-2xl font-bold text-slate-800">
+            Validations
+          </h1>
+          <p className="mt-1 text-sm text-slate-500">
+            Review benefit data checks before proceeding to the next step.
+          </p>
         </div>
 
-        <div className="flex items-center gap-3">
-
-          <span
-            className={`
-              inline-flex items-center gap-2
-              px-4 py-2 rounded-full
-              text-xs font-bold
-              ${
-                validated && validationPassed
-                  ? "bg-[#E8F2EC] text-[#1E8E68]"
-                  : "bg-[#FFF0D8] text-[#B87912]"
-              }
-            `}
-          >
-            {validated && validationPassed ? (
-              <>
-                <CheckCircle2 size={15} />
-                Validation Passed
-              </>
-            ) : (
-              <>
-                <AlertTriangle size={15} />
-                Validation Required
-              </>
-            )}
-          </span>
-
-          <span className="text-xs font-semibold text-[#71837B]">
-            #SCH-1024
-          </span>
+        <div className="flex items-center gap-2 text-sm text-slate-500">
+          <FileCheck2 size={18} className="text-[#1E5A45]" />
+          Benefit validation
         </div>
       </div>
 
-      {/* PROJECT INFORMATION */}
-      <div className="bg-white border border-[#D5E2DA] rounded-xl shadow-sm p-5 mb-5">
+      {/* Validation summary */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="rounded-xl border border-slate-200 bg-white p-5">
+          <p className="text-sm text-slate-500">Total Checks</p>
+          <p className="mt-2 text-2xl font-bold text-slate-800">
+            {totalChecks}
+          </p>
+        </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
+        <div className="rounded-xl border border-slate-200 bg-white p-5">
+          <p className="text-sm text-slate-500">Passed</p>
+          <p className="mt-2 text-2xl font-bold text-green-600">
+            {passedChecks}
+          </p>
+        </div>
 
-          <InfoItem
-            label="Client"
-            value="ABC Corporation"
-          />
+        <div className="rounded-xl border border-slate-200 bg-white p-5">
+          <p className="text-sm text-slate-500">Needs Review</p>
+          <p className="mt-2 text-2xl font-bold text-amber-600">
+            {reviewCount}
+          </p>
+        </div>
 
-          <InfoItem
-            label="Source Insurer"
-            value="Aetna"
-          />
-
-          <InfoItem
-            label="Benefit Schedule"
-            value="Medical_Benefit.pdf"
-          />
-
-          <InfoItem
-            label="Version"
-            value="v0.2 Draft"
-          />
-
+        <div className="rounded-xl border border-slate-200 bg-white p-5">
+          <p className="text-sm text-slate-500">Errors</p>
+          <p className="mt-2 text-2xl font-bold text-red-600">
+            {errorCount}
+          </p>
         </div>
       </div>
 
-      {/* VALIDATION SUMMARY */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-5">
-
-        <SummaryCard
-          title="Mandatory Fields"
-          value={`${mandatoryValid}/${mandatoryTotal}`}
-          label="Passed"
-          icon={CheckCircle2}
-          status={mandatoryValid === mandatoryTotal ? "success" : "warning"}
-        />
-
-        <SummaryCard
-          title="Option Columns"
-          value={`${optionValid}/${optionTotal}`}
-          label="Passed"
-          icon={FileCheck2}
-          status={optionValid === optionTotal ? "success" : "warning"}
-        />
-
-        <SummaryCard
-          title="Mapping"
-          value={`${mappingValid}/${mappingTotal}`}
-          label="Validated"
-          icon={CheckCircle2}
-          status={mappingValid === mappingTotal ? "success" : "warning"}
-        />
-
-        <SummaryCard
-          title="Issues"
-          value={issueCount}
-          label={issueCount === 0 ? "No Issues" : "Need Attention"}
-          icon={issueCount === 0 ? CheckCircle2 : AlertTriangle}
-          status={issueCount === 0 ? "success" : "error"}
-        />
-
-      </div>
-
-      {/* VALIDATION PROGRESS */}
-      <div className="bg-white border border-[#D5E2DA] rounded-xl shadow-sm p-5 mb-5">
-
-        <div className="flex items-center justify-between mb-3">
-
+      {/* Validation progress */}
+      <div className="rounded-xl border border-slate-200 bg-white p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="text-sm font-bold text-[#12352B]">
+            <h2 className="font-semibold text-slate-800">
               Validation Progress
             </h2>
-
-            <p className="text-xs text-[#71837B] mt-1">
-              {passedChecks} of {totalChecks} validation checks passed.
+            <p className="mt-1 text-sm text-slate-500">
+              {passedChecks} of {totalChecks} checks passed
             </p>
           </div>
 
-          <span className="text-lg font-bold text-[#1E5A45]">
+          <span className="text-xl font-bold text-[#1E5A45]">
             {validationPercentage}%
           </span>
-
         </div>
 
-        <div className="h-3 rounded-full bg-[#E6ECE9] overflow-hidden">
-
+        <div className="mt-4 h-2.5 overflow-hidden rounded-full bg-slate-100">
           <div
-            className={`
-              h-full rounded-full transition-all duration-500
-              ${
-                validationPassed
-                  ? "bg-[#1E8E68]"
-                  : "bg-[#D98A13]"
-              }
-            `}
-            style={{
-              width: `${validationPercentage}%`,
-            }}
+            className="h-full rounded-full bg-[#1E5A45] transition-all"
+            style={{ width: `${validationPercentage}%` }}
           />
-
         </div>
-
       </div>
 
-      {/* MANDATORY FIELDS */}
-      <ValidationSection
-        title="Mandatory Fields"
-        description="All required project and benefit information must be completed."
-        sectionKey="mandatory"
-        expandedSection={expandedSection}
-        onToggle={toggleSection}
-        status={
-          mandatoryValid === mandatoryTotal
-            ? "success"
-            : "warning"
-        }
-      >
-
-        <div className="overflow-x-auto">
-
-          <table className="w-full">
-
-            <thead>
-              <tr className="bg-[#F2F7F4]">
-
-                <TableHeader>
-                  Field
-                </TableHeader>
-
-                <TableHeader>
-                  Value
-                </TableHeader>
-
-                <TableHeader>
-                  Status
-                </TableHeader>
-
-              </tr>
-            </thead>
-
-            <tbody>
-
-              {validationData.mandatoryFields.map((item) => (
-
-                <tr
-                  key={item.id}
-                  className="border-t border-[#E5ECE8]"
-                >
-
-                  <TableCell bold>
-                    {item.field}
-                  </TableCell>
-
-                  <TableCell>
-                    {item.value || "—"}
-                  </TableCell>
-
-                  <TableCell>
-                    <StatusBadge status={item.status} />
-                  </TableCell>
-
-                </tr>
-
-              ))}
-
-            </tbody>
-
-          </table>
-
-        </div>
-
-      </ValidationSection>
-
-      {/* OPTION VALIDATION */}
-      <ValidationSection
-        title="Option Columns"
-        description="Check that Current Plan and Options 1, 2 and 3 contain the required values."
-        sectionKey="options"
-        expandedSection={expandedSection}
-        onToggle={toggleSection}
-        status={
-          optionValid === optionTotal
-            ? "success"
-            : "warning"
-        }
-      >
-
-        <div className="overflow-x-auto">
-
-          <table className="w-full">
-
-            <thead>
-
-              <tr className="bg-[#F2F7F4]">
-
-                <TableHeader>
-                  Benefit
-                </TableHeader>
-
-                <TableHeader>
-                  Option 1
-                </TableHeader>
-
-                <TableHeader>
-                  Option 2
-                </TableHeader>
-
-                <TableHeader>
-                  Option 3
-                </TableHeader>
-
-                <TableHeader>
-                  Status
-                </TableHeader>
-
-              </tr>
-
-            </thead>
-
-            <tbody>
-
-              {validationData.options.map((item) => (
-
-                <tr
-                  key={item.id}
-                  className="border-t border-[#E5ECE8]"
-                >
-
-                  <TableCell bold>
-                    {item.benefit}
-                  </TableCell>
-
-                  <TableCell>
-                    <OptionValue value={item.option1} />
-                  </TableCell>
-
-                  <TableCell>
-                    <OptionValue value={item.option2} />
-                  </TableCell>
-
-                  <TableCell>
-                    <OptionValue value={item.option3} />
-                  </TableCell>
-
-                  <TableCell>
-                    <StatusBadge status={item.status} />
-                  </TableCell>
-
-                </tr>
-
-              ))}
-
-            </tbody>
-
-          </table>
-
-        </div>
-
-      </ValidationSection>
-
-      {/* MAPPING VALIDATION */}
-      <ValidationSection
-        title="Mapping"
-        description="Confirm that all extracted benefits have been mapped to Canopy columns."
-        sectionKey="mapping"
-        expandedSection={expandedSection}
-        onToggle={toggleSection}
-        status={
-          mappingValid === mappingTotal
-            ? "success"
-            : "warning"
-        }
-      >
-
-        <div className="overflow-x-auto">
-
-          <table className="w-full">
-
-            <thead>
-
-              <tr className="bg-[#F2F7F4]">
-
-                <TableHeader>
-                  Benefit
-                </TableHeader>
-
-                <TableHeader>
-                  Canopy Mapping
-                </TableHeader>
-
-                <TableHeader>
-                  Status
-                </TableHeader>
-
-              </tr>
-
-            </thead>
-
-            <tbody>
-
-              {validationData.mapping.map((item) => (
-
-                <tr
-                  key={item.id}
-                  className="border-t border-[#E5ECE8]"
-                >
-
-                  <TableCell bold>
-                    {item.benefit}
-                  </TableCell>
-
-                  <TableCell>
-                    {item.mappedColumn}
-                  </TableCell>
-
-                  <TableCell>
-                    <StatusBadge status={item.status} />
-                  </TableCell>
-
-                </tr>
-
-              ))}
-
-            </tbody>
-
-          </table>
-
-        </div>
-
-      </ValidationSection>
-
-      {/* VALIDATION RESULT */}
-      <div
-        className={`
-          mt-5 rounded-xl border p-5
-          ${
-            validationPassed
-              ? "bg-[#E8F2EC] border-[#B8D9C6]"
-              : "bg-[#FFF8EA] border-[#F0D6A5]"
-          }
-        `}
-      >
-
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-
-          <div className="flex items-start gap-3">
-
-            <div
-              className={`
-                w-10 h-10 rounded-lg
-                flex items-center justify-center shrink-0
-                ${
-                  validationPassed
-                    ? "bg-[#D0EBDD] text-[#1E8E68]"
-                    : "bg-[#FBE8C5] text-[#B87912]"
-                }
-              `}
-            >
-              {validationPassed ? (
-                <CheckCircle2 size={21} />
-              ) : (
-                <AlertTriangle size={21} />
-              )}
-            </div>
-
-            <div>
-
-              <h3
-                className={`
-                  text-sm font-bold
-                  ${
-                    validationPassed
-                      ? "text-[#12352B]"
-                      : "text-[#8A5A0A]"
-                  }
-                `}
-              >
-                {validationPassed
-                  ? "Validation Passed"
-                  : "Validation Requires Attention"}
-              </h3>
-
-              <p
-                className={`
-                  text-xs mt-1
-                  ${
-                    validationPassed
-                      ? "text-[#526C61]"
-                      : "text-[#8A6B32]"
-                  }
-                `}
-              >
-                {validationPassed
-                  ? "All required validation checks have passed. The benefit schedule is ready for the next step."
-                  : `${issueCount} validation issue${
-                      issueCount === 1 ? "" : "s"
-                    } must be resolved before proceeding.`}
-              </p>
-
-            </div>
-
-          </div>
-
-          <div className="flex items-center gap-3">
-
-            <button
-              type="button"
-              onClick={handleValidate}
-              className="
-                h-10 px-5 rounded-lg
-                border border-[#1E5A45]
-                text-[#1E5A45]
-                bg-white
-                text-sm font-semibold
-                flex items-center gap-2
-                hover:bg-[#E8F2EC]
-                transition-colors
-              "
-            >
-              <RefreshCw size={16} />
-              Re-validate
-            </button>
-
-            <button
-              type="button"
-              disabled={!validationPassed}
-              className={`
-                h-10 px-5 rounded-lg
-                text-sm font-semibold
-                flex items-center gap-2
-                transition-colors
-                ${
-                  validationPassed
-                    ? "bg-[#1E5A45] text-white hover:bg-[#164A38]"
-                    : "bg-[#CBD6D0] text-[#71837B] cursor-not-allowed"
-                }
-              `}
-            >
-              Continue to Underwriting
-              <ArrowRight size={17} />
-            </button>
-
-          </div>
-
-        </div>
-
+      {/* Expandable validation sections */}
+      <div className="space-y-4">
+        {renderSection("mandatory", sections.mandatory)}
+        {renderSection("options", sections.options)}
+        {renderSection("mapping", sections.mapping)}
       </div>
 
-    </div>
-  );
-};
-
-/* -------------------------------------------------- */
-/* INFO ITEM */
-/* -------------------------------------------------- */
-
-const InfoItem = ({ label, value }) => {
-  return (
-    <div>
-
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-[#71837B]">
-        {label}
-      </p>
-
-      <p className="text-sm font-semibold text-[#12352B] mt-1">
-        {value}
-      </p>
-
-    </div>
-  );
-};
-
-/* -------------------------------------------------- */
-/* SUMMARY CARD */
-/* -------------------------------------------------- */
-
-const SummaryCard = ({
-  title,
-  value,
-  label,
-  icon: Icon,
-  status,
-}) => {
-  const styles = {
-    success: {
-      wrapper: "bg-[#E8F2EC] border-[#CDE2D5]",
-      icon: "bg-[#D5EADF] text-[#1E8E68]",
-      value: "text-[#12352B]",
-    },
-    warning: {
-      wrapper: "bg-[#FFF8EA] border-[#F0D6A5]",
-      icon: "bg-[#FBE8C5] text-[#B87912]",
-      value: "text-[#8A5A0A]",
-    },
-    error: {
-      wrapper: "bg-[#FFF0F0] border-[#E8C2C2]",
-      icon: "bg-[#F8DADA] text-[#C94C4C]",
-      value: "text-[#C94C4C]",
-    },
-  };
-
-  const style = styles[status];
-
-  return (
-    <div
-      className={`
-        rounded-xl border p-4
-        ${style.wrapper}
-      `}
-    >
-
-      <div className="flex items-start justify-between">
-
-        <div>
-
-          <p className="text-xs font-semibold text-[#60756B]">
-            {title}
-          </p>
-
-          <p
-            className={`
-              text-2xl font-bold mt-1
-              ${style.value}
-            `}
-          >
-            {value}
-          </p>
-
-          <p className="text-[11px] font-medium text-[#71837B] mt-1">
-            {label}
-          </p>
-
-        </div>
-
-        <div
-          className={`
-            w-9 h-9 rounded-lg
-            flex items-center justify-center
-            ${style.icon}
-          `}
-        >
-          <Icon size={19} />
-        </div>
-
-      </div>
-
-    </div>
-  );
-};
-
-/* -------------------------------------------------- */
-/* VALIDATION SECTION */
-/* -------------------------------------------------- */
-
-const ValidationSection = ({
-  title,
-  description,
-  sectionKey,
-  expandedSection,
-  onToggle,
-  status,
-  children,
-}) => {
-  const isOpen = expandedSection === sectionKey;
-
-  return (
-    <div className="bg-white border border-[#D5E2DA] rounded-xl shadow-sm mb-4 overflow-hidden">
-
-      <button
-        type="button"
-        onClick={() => onToggle(sectionKey)}
-        className="w-full px-5 py-4 flex items-center justify-between hover:bg-[#FAFCFB] transition-colors"
-      >
-
-        <div className="flex items-center gap-3 text-left">
-
-          <div
-            className={`
-              w-9 h-9 rounded-lg
-              flex items-center justify-center
-              ${
-                status === "success"
-                  ? "bg-[#E8F2EC] text-[#1E8E68]"
-                  : "bg-[#FFF0D8] text-[#B87912]"
-              }
-            `}
-          >
-            {status === "success" ? (
-              <CheckCircle2 size={19} />
-            ) : (
-              <AlertTriangle size={19} />
-            )}
-          </div>
+      {/* Validation results and actions */}
+      <div className="rounded-xl border border-slate-200 bg-white p-5 md:p-6">
+        <div className="flex items-start gap-3">
+          {validationPassed ? (
+            <CheckCircle2
+              size={24}
+              className="mt-0.5 text-green-600"
+            />
+          ) : (
+            <AlertTriangle
+              size={24}
+              className="mt-0.5 text-amber-500"
+            />
+          )}
 
           <div>
-
-            <h2 className="text-sm font-bold text-[#12352B]">
-              {title}
+            <h2 className="font-semibold text-slate-800">
+              {validationPassed
+                ? "Validation Passed"
+                : "Validation Requires Attention"}
             </h2>
 
-            <p className="text-xs text-[#71837B] mt-1">
-              {description}
+            <p className="mt-1 text-sm text-slate-500">
+              {validationPassed
+                ? "All available checks have passed."
+                : `${issueCount} item(s) require attention.`}
             </p>
-
           </div>
-
         </div>
 
-        {isOpen ? (
-          <ChevronUp
-            size={19}
-            className="text-[#60756B]"
-          />
-        ) : (
-          <ChevronDown
-            size={19}
-            className="text-[#60756B]"
-          />
+        {!validated && (
+          <button
+            type="button"
+            onClick={handleValidate}
+            className="mt-5 flex h-10 items-center gap-2 rounded-lg bg-[#1E5A45] px-5 text-sm font-semibold text-white hover:bg-[#174735]"
+          >
+            <RefreshCw size={16} />
+            Run Validation
+          </button>
         )}
 
-      </button>
+        <div className="mt-6 flex flex-wrap gap-3 border-t border-slate-100 pt-5">
+          <button
+            type="button"
+            onClick={handleRevalidate}
+            className="flex h-10 items-center gap-2 rounded-lg border border-[#1E5A45] bg-white px-5 text-sm font-semibold text-[#1E5A45] transition-colors hover:bg-[#E8F2EC]"
+          >
+            <RefreshCw size={16} />
+            Re-validate
+          </button>
 
-      {isOpen && (
-        <div className="border-t border-[#D5E2DA]">
-          {children}
+          <button
+            type="button"
+            onClick={handleViewExceptions}
+            className="flex h-10 items-center gap-2 rounded-lg border border-amber-300 bg-white px-5 text-sm font-semibold text-amber-700 transition-colors hover:bg-amber-50"
+          >
+            <AlertTriangle size={16} />
+            View Exceptions
+          </button>
+
+          {/* Next button navigates to Options */}
+          <button
+            type="button"
+            onClick={handleNext}
+            className="flex h-10 items-center gap-2 rounded-lg bg-[#1E5A45] px-5 text-sm font-semibold text-white transition-colors hover:bg-[#174735]"
+          >
+            Next
+            <ArrowRight size={16} />
+          </button>
         </div>
-      )}
-
+      </div>
     </div>
-  );
-};
-
-/* -------------------------------------------------- */
-/* TABLE HEADER */
-/* -------------------------------------------------- */
-
-const TableHeader = ({ children }) => {
-  return (
-    <th className="px-5 py-3 text-left text-xs font-bold text-[#526C61]">
-      {children}
-    </th>
-  );
-};
-
-/* -------------------------------------------------- */
-/* TABLE CELL */
-/* -------------------------------------------------- */
-
-const TableCell = ({ children, bold = false }) => {
-  return (
-    <td
-      className={`
-        px-5 py-3.5 text-sm
-        ${
-          bold
-            ? "font-semibold text-[#29483D]"
-            : "text-[#526C61]"
-        }
-      `}
-    >
-      {children}
-    </td>
-  );
-};
-
-/* -------------------------------------------------- */
-/* OPTION VALUE */
-/* -------------------------------------------------- */
-
-const OptionValue = ({ value }) => {
-  if (!value) {
-    return (
-      <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#C94C4C]">
-        <XCircle size={15} />
-        Missing
-      </span>
-    );
-  }
-
-  if (value === "N/A") {
-    return (
-      <span className="text-sm font-medium text-[#8A9790]">
-        N/A
-      </span>
-    );
-  }
-
-  return (
-    <span className="text-sm font-medium text-[#526C61]">
-      {value}
-    </span>
-  );
-};
-
-/* -------------------------------------------------- */
-/* STATUS BADGE */
-/* -------------------------------------------------- */
-
-const StatusBadge = ({ status }) => {
-  if (status === "Valid") {
-    return (
-      <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#15966F]">
-        <span className="w-2 h-2 rounded-full bg-[#15966F]" />
-        Valid
-      </span>
-    );
-  }
-
-  if (status === "Warning") {
-    return (
-      <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#B87912]">
-        <span className="w-2 h-2 rounded-full bg-[#F1A329]" />
-        Warning
-      </span>
-    );
-  }
-
-  return (
-    <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#C94C4C]">
-      <span className="w-2 h-2 rounded-full bg-[#E94B4B]" />
-      Error
-    </span>
   );
 };
 

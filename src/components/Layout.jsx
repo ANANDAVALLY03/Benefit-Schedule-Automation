@@ -10,7 +10,7 @@ const Layout = ({ children, role = "Underwriter" }) => {
   };
 
   return (
-    <div className="h-screen overflow-hidden bg-[#F7F5EF]">
+    <div className="h-screen overflow-hidden bg-cream">
 
       {/* =====================================
           FIXED HEADER
@@ -46,7 +46,7 @@ const Layout = ({ children, role = "Underwriter" }) => {
           right-0
           bottom-0
           overflow-y-auto
-          bg-[#F7F5EF]
+          bg-cream
         "
       >
         {children}
