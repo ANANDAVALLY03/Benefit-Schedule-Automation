@@ -217,26 +217,15 @@ export async function getBenefits(documentId) {
 
 // VALIDATE EXTRACTED BENEFITS
 
-export async function validateDocumentBenefits(
-  documentId
-) {
-  if (!documentId) {
-    throw new Error("Document ID is required.");
-  }
-
-  const response = await fetch(
-    `${API_BASE_URL}/api/benefits/validate/${documentId}`,
-    {
-      method: "POST",
-    }
+export async function validateDocumentBenefits(documentId) {
+  return handleResponse(
+    await fetch(
+      `${API_BASE_URL}/api/benefits/validate/${documentId}`,
+      { method: "POST" }
+    )
   );
-
-  return handleResponse(response);
 }
 
-// ============================================
-// SEMANTIC SEARCH API
-// ============================================
 
 export async function searchDocuments(
   query,
