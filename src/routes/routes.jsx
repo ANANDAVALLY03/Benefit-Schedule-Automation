@@ -4,7 +4,7 @@ import Layout from "../components/Layout";
 
 import UnderwriterOverview from "../pages/underWrite/underWrite";
 import Documents from "../pages/underwrite/Documents";
-import Benefits from "../pages/underwrite/benefits";
+import Benefits from "../pages/underwrite/Benefits";
 import Validations from "../pages/underwrite/Validations";
 import Exceptions from "../pages/underwrite/Exceptions";
 import Underwriting from "../pages/underwrite/Underwriting";
