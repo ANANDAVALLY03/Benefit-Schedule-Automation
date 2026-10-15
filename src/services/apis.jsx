@@ -49,6 +49,24 @@ export async function validateDocumentBenefits(documentId) {
   );
 }
 
+export async function resolveBenefit(
+  documentId,
+  benefitId,
+  payload
+) {
+  return handleResponse(
+    await fetch(
+      `${API_BASE_URL}/api/benefits/resolve/${documentId}/${benefitId}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      }
+    )
+  );
+}
 
 export async function searchDocuments(query, limit = 5) {
   const params = new URLSearchParams({
