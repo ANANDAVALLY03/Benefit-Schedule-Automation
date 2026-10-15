@@ -50,6 +50,7 @@ const normalizeValidationStatus = (status) => {
   if (["valid", "verified", "validated"].includes(normalized)) return "Valid";
   if (["needs review", "review", "pending review"].includes(normalized)) return "Needs Review";
   if (["mismatch", "invalid", "conflict"].includes(normalized)) return "Mismatch";
+  if (["n/a", "na", "not applicable", "excluded"].includes(normalized)) return "N/A";
   return "Unverified";
 };
 
@@ -177,44 +178,37 @@ const Benefits = () => {
 
 
 
-            return {
-
+            const baseRecord = {
               id: item.id ?? index,
-
               benefit: item.benefit_name || "N/A",
-
               category: item.benefit_category || "N/A",
-
-
-              extracted:
-
-                details.length > 0
-
-                  ? details
-
-                      .map(([label, value]) => `${label}: ${value}`)
-
-                      .join(" | ")
-
-                  : "N/A",
-
-              confidence: (
-
-                item.extraction_confidence || "low"
-
-              ).toLowerCase(),
-
+              extracted: details.length > 0
+                ? details.map(([label, value]) => `${label}: ${value}`).join(" | ")
+                : "N/A",
+              confidence: (item.extraction_confidence || "low").toLowerCase(),
               sourceExcerpt: item.source_excerpt || "N/A",
-
               attributes: item.other_attributes || {},
-
               status: normalizeValidationStatus(
                 item.validation_status || item.status || "Unverified"
               ),
-
               validationReason: item.validation_reason || "",
-
             };
+
+            // Apply underwriter decisions made in the Exceptions page.
+            try {
+              const overrides = JSON.parse(
+                localStorage.getItem(`benefit-status-overrides-${documentId}`) || "{}"
+              );
+              const override = overrides[String(item.id ?? item.benefit_name)];
+              if (override?.status) {
+                baseRecord.status = normalizeValidationStatus(override.status);
+                baseRecord.validationReason = override.action || "Updated by underwriter";
+              }
+            } catch {
+              // Ignore malformed local browser data and use the API status.
+            }
+
+            return baseRecord;
 
           }
 
@@ -407,7 +401,6 @@ const isPdf = extension === "pdf";
 
     try {
       const result = await validateDocumentBenefits(documentId);
-      
       const results = Array.isArray(result.results) ? result.results : [];
 
       if (results.length === 0 && benefits.length > 0) {
@@ -459,6 +452,26 @@ const isPdf = extension === "pdf";
       });
 
       setBenefits(updatedBenefits);
+      // Share validation results with the Exceptions page in this browser.
+      // The backend should persist these values for cross-device/shared use.
+      try {
+        const storageKey = `benefit-status-overrides-${documentId}`;
+        const savedOverrides = JSON.parse(localStorage.getItem(storageKey) || "{}");
+        updatedBenefits.forEach((benefit) => {
+          const key = String(benefit.id ?? benefit.benefit);
+          savedOverrides[key] = {
+            ...(savedOverrides[key] || {}),
+            status: benefit.status || "Unverified",
+            action: savedOverrides[key]?.action || "Validation result",
+            validationReason: benefit.validationReason || "",
+            benefitName: benefit.benefit || "",
+            updatedAt: new Date().toISOString(),
+          };
+        });
+        localStorage.setItem(storageKey, JSON.stringify(savedOverrides));
+      } catch (storageError) {
+        console.warn("Could not share validation statuses with Exceptions:", storageError);
+      }
       setValidated(true);
     } catch (err) {
       setError(err.message || "Failed to compare and validate benefits.");
@@ -1024,7 +1037,8 @@ const isPdf = extension === "pdf";
 
                         <td className="px-4 py-3">
 
-                          <BenefitStatus status={item.status || "Unverified"} />
+                          <BenefitStatus status={item.status} />
+
                         </td>
 
                       </tr>
@@ -1389,6 +1403,11 @@ const BenefitStatus = ({ status }) => {
       text: "text-[#D94B4B]",
       dot: "bg-[#E94B4B]",
       label: "Unverified",
+    },
+    "N/A": {
+      text: "text-[#71837B]",
+      dot: "bg-[#A4B3AC]",
+      label: "N/A",
     },
     Unknown: {
       text: "text-[#71837B]",
