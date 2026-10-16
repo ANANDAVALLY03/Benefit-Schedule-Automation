@@ -47,17 +47,18 @@ export const menuConfig = {
     },
 
     {
-      name: "Exceptions",
-      route: "/underwriter/exceptions",
-      icon: AlertTriangle,
-    },
-    
-    {
       name: "Validations",
       route: "/underwriter/validations",
       icon: CheckCircle2,
     },
 
+
+    {
+      name: "Exceptions",
+      route: "/underwriter/exceptions",
+      icon: AlertTriangle,
+    },
+    
      {
       name: "Options",
       route: "/underwriter/options",

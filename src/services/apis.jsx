@@ -1,24 +1,3 @@
-
-/*
-  CANOPY - API Service
-  File: src/services/apis.jsx
-
-  Backend: FastAPI
-  Database: PostgreSQL
-
-  Supports:
-  - Create Project (V1)
-  - List Projects
-  - Reopen Project
-  - Upload New Versions (V2, V3...)
-  - Version History
-  - Document Details
-  - Benefits
-  - Validation
-  - Semantic Search
-  - PDF Preview and Download
-*/
-
 const API_BASE_URL = (
   import.meta.env.VITE_API_BASE_URL ||
   "http://localhost:8000"
@@ -346,3 +325,39 @@ export async function downloadOriginalDocument(
     window.URL.revokeObjectURL(url);
   }, 1000);
 }
+
+export const resolveBenefit = async (
+  documentId,
+  benefitId,
+  payload
+) => {
+  const baseUrl = (
+    import.meta.env.VITE_API_BASE_URL ||
+    "http://localhost:8000"
+  ).replace(/\/+$/, "");
+
+  const response = await fetch(
+    `${baseUrl}/api/benefits/${benefitId}/resolve`,
+    {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        ...payload,
+        document_id: documentId,
+      }),
+    }
+  );
+
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    throw new Error(
+      data?.detail ||
+      `Failed to resolve benefit (HTTP ${response.status})`
+    );
+  }
+
+  return data;
+};
