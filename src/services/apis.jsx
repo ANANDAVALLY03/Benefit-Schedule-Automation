@@ -50,7 +50,7 @@ async function handleResponse(response) {
     } else if (data.message) {
       message = data.message;
     }
-
+    
     const error = new Error(message);
 
     error.status = response.status;
@@ -151,6 +151,34 @@ export async function uploadProjectVersion(
 
   return handleResponse(response);
 }
+
+
+export async function updateDocumentDescription(documentId, description) {
+  const baseUrl =
+    import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+
+  const response = await fetch(
+    `${baseUrl}/api/documents/${documentId}/description`,
+    {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ description }),
+    }
+  );
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(
+      data.detail || "Failed to save description."
+    );
+  }
+
+  return data;
+}
+
 
 // ============================================
 // DOCUMENT APIs
