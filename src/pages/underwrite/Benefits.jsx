@@ -1226,16 +1226,6 @@ const isPdf = extension === "pdf";
 
               />
 
-              <ExtractionRow
-
-                label="Embeddings Stored"
-
-                done={false}
-
-                pendingLabel="Not verified"
-
-              />
-
             </div>
 
           </section>

@@ -1,24 +1,3 @@
-
-/*
-  CANOPY - API Service
-  File: src/services/apis.jsx
-
-  Backend: FastAPI
-  Database: PostgreSQL
-
-  Supports:
-  - Create Project (V1)
-  - List Projects
-  - Reopen Project
-  - Upload New Versions (V2, V3...)
-  - Version History
-  - Document Details
-  - Benefits
-  - Validation
-  - Semantic Search
-  - PDF Preview and Download
-*/
-
 const API_BASE_URL = (
   import.meta.env.VITE_API_BASE_URL ||
   "http://localhost:8000"
