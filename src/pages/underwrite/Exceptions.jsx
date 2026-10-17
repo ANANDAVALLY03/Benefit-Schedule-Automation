@@ -1,219 +1,1422 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+
 import {
-  AlertTriangle, ArrowRight, CheckCircle2, FileWarning,
-  GitPullRequest, Map, RefreshCw, Search, X, XCircle,
+  useLocation,
+  useNavigate,
+} from "react-router-dom";
+
+import {
+  AlertTriangle,
+  ArrowRight,
+  CheckCircle2,
+  ChevronDown,
+  ChevronRight,
+  FileText,
+  FolderOpen,
+  RefreshCw,
+  Search,
+  X,
 } from "lucide-react";
-import { getBenefits, resolveBenefit } from "../../services/apis";
 
-const normalizeStatus = (value) => String(value ?? "Unverified").trim().toLowerCase();
-const isCleared = (value) => ["valid", "passed", "approved", "n/a", "na", "not applicable"].includes(normalizeStatus(value));
-const isError = (value) => ["mismatch", "invalid", "error", "failed", "blocking"].includes(normalizeStatus(value));
+import {
+  getProjects,
+  getDocuments,
+  getBenefits,
+  resolveBenefit,
+} from "../../services/apis";
 
-const actions = [
-  { label: "Map to Existing", value: "map_existing", description: "Map this benefit to an existing CANOPY master entry." },
-  { label: "Mark as N/A", value: "mark_na", description: "Exclude this benefit where not applicable." },
-  { label: "Raise Change Request", value: "raise_change_request", description: "Request approval to add a benefit to the master." },
-  { label: "Mark for Re-validation", value: "revalidate", description: "Request another validation after correcting the underlying data." },
+// ==========================================
+// HELPERS
+// ==========================================
+
+const normalize = (value) =>
+  String(value ?? "").trim().toLowerCase();
+
+const unwrap = (response) =>
+  response?.data ?? response;
+
+const asArray = (response, key) => {
+  const payload = unwrap(response);
+
+  if (Array.isArray(payload)) return payload;
+
+  if (Array.isArray(payload?.[key])) {
+    return payload[key];
+  }
+
+  return [];
+};
+
+const idOf = (item) =>
+  item?.document_id ?? item?.id;
+
+const projectIdOf = (item) =>
+  item?.project_id ??
+  item?.projectId ??
+  item?.project?.id;
+
+const projectName = (project) =>
+  project?.project_name ||
+  project?.name ||
+  project?.client_name ||
+  `Project ${project?.id}`;
+
+const documentName = (document) =>
+  document?.original_filename ||
+  document?.filename ||
+  document?.file_name ||
+  document?.document_name ||
+  `Document ${idOf(document)}`;
+
+const parseAttributes = (value) => {
+  if (!value) return {};
+
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+
+      return parsed &&
+        typeof parsed === "object" &&
+        !Array.isArray(parsed)
+        ? parsed
+        : {};
+    } catch {
+      return {};
+    }
+  }
+
+  return typeof value === "object" &&
+    !Array.isArray(value)
+    ? value
+    : {};
+};
+
+const resolutionOf = (benefit) =>
+  parseAttributes(
+    benefit?.other_attributes
+  ).underwriter_resolution || {};
+
+const COMPLETED_ACTIONS = [
+  "map_existing",
+  "mark_na",
+  "raise_change_request",
 ];
 
-function InfoItem({ label, value }) {
-  return <div><p className="text-[11px] font-semibold uppercase tracking-wide text-[#71837B]">{label}</p><p className="mt-1 break-words text-sm font-semibold text-[#12352B]">{value == null || value === "" ? "N/A" : String(value)}</p></div>;
-}
+const isReviewCompleted = (benefit) => {
+  const resolution = resolutionOf(benefit);
+
+  return (
+    normalize(resolution.review_status) ===
+      "completed" &&
+    COMPLETED_ACTIONS.includes(resolution.action)
+  );
+};
+
+const isCleared = (benefit) => {
+  if (isReviewCompleted(benefit)) return true;
+
+  return [
+    "valid",
+    "validated",
+    "verified",
+    "passed",
+    "approved",
+    "n/a",
+    "na",
+    "not applicable",
+  ].includes(
+    normalize(
+      benefit?.validation_status ??
+        benefit?.status
+    )
+  );
+};
+
+const isPendingAdmin = (benefit) => {
+  const resolution = resolutionOf(benefit);
+
+  return (
+    isReviewCompleted(benefit) &&
+    resolution.action === "raise_change_request" &&
+    !["approved", "rejected"].includes(
+      normalize(resolution.approval_status)
+    )
+  );
+};
+
+const summaryOf = (benefits = []) => {
+  const total = benefits.length;
+  const completed = benefits.filter(isCleared).length;
+  const remaining = total - completed;
+  const adminPending = benefits.filter(isPendingAdmin).length;
+
+  return {
+    total,
+    completed,
+    remaining,
+    adminPending,
+    percentage: total
+      ? Math.round((completed / total) * 100)
+      : 0,
+    canProceed: total > 0 && remaining === 0,
+  };
+};
+
+const ACTIONS = [
+  {
+    value: "map_existing",
+    label: "Map to Existing",
+    description:
+      "Map this benefit provisionally to another extracted benefit.",
+  },
+  {
+    value: "mark_na",
+    label: "Mark as N/A",
+    description:
+      "Mark this benefit as not applicable.",
+  },
+  {
+    value: "raise_change_request",
+    label: "Raise Change Request",
+    description:
+      "Request Admin approval for a new field.",
+  },
+];
+
+const getErrorMessage = (error, fallback) => {
+  const detail = error?.response?.data?.detail;
+
+  if (typeof detail === "string") return detail;
+
+  return error?.message || fallback;
+};
+
+// ==========================================
+// MAIN COMPONENT
+// ==========================================
 
 export default function Exceptions() {
   const navigate = useNavigate();
   const location = useLocation();
-  const documentId = new URLSearchParams(location.search).get("documentId") || location.state?.documentId || sessionStorage.getItem("lastDocumentId");
-  const [documentBenefits, setDocumentBenefits] = useState([]);
-  const [benefitsLoading, setBenefitsLoading] = useState(false);
-  const [benefitsLoadError, setBenefitsLoadError] = useState("");
-  const [selectedException, setSelectedException] = useState(null);
-  const [selectedAction, setSelectedAction] = useState("");
-  const [notes, setNotes] = useState("");
-  const [mappedToBenefit, setMappedToBenefit] = useState("");
-  const [savingResolution, setSavingResolution] = useState(false);
-  const [activeFilter, setActiveFilter] = useState("All");
-  const [searchTerm, setSearchTerm] = useState("");
 
-  const loadBenefits = useCallback(async () => {
-    if (!documentId) {
-      setDocumentBenefits([]);
-      setBenefitsLoadError("No document selected. Open a document from Benefits first.");
+  const initialParams = new URLSearchParams(
+    location.search
+  );
+
+  const initialProjectId =
+    initialParams.get("projectId") ||
+    location.state?.projectId ||
+    "";
+
+  const initialDocumentId =
+    initialParams.get("documentId") ||
+    location.state?.documentId ||
+    "";
+
+  // ==========================================
+  // STATE
+  // ==========================================
+
+  const [projects, setProjects] = useState([]);
+  const [documents, setDocuments] = useState([]);
+
+  const [
+    benefitsByDocument,
+    setBenefitsByDocument,
+  ] = useState({});
+
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+
+  const [
+    selectedProjectId,
+    setSelectedProjectId,
+  ] = useState(String(initialProjectId));
+
+  const [
+    selectedDocumentId,
+    setSelectedDocumentId,
+  ] = useState(String(initialDocumentId));
+
+  const [
+    expandedDocuments,
+    setExpandedDocuments,
+  ] = useState({});
+
+  const [searchTerm, setSearchTerm] = useState("");
+  const [activeFilter, setActiveFilter] = useState("All");
+
+  const [
+    selectedException,
+    setSelectedException,
+  ] = useState(null);
+
+  const [selectedAction, setSelectedAction] = useState("");
+  const [mappedToBenefit, setMappedToBenefit] = useState("");
+  const [newFieldName, setNewFieldName] = useState("");
+  const [notes, setNotes] = useState("");
+
+  const [
+    savingResolution,
+    setSavingResolution,
+  ] = useState(false);
+
+  const [proceeding, setProceeding] = useState(false);
+
+  // ==========================================
+  // LOAD ALL PROJECTS AND DOCUMENTS
+  // ==========================================
+
+  const loadAllData = useCallback(async () => {
+    setLoading(true);
+    setError("");
+
+    try {
+      const [projectResponse, documentResponse] =
+        await Promise.all([
+          getProjects(),
+          getDocuments(),
+        ]);
+
+      const projectRecords = asArray(
+        projectResponse,
+        "projects"
+      );
+
+      const documentRecords = asArray(
+        documentResponse,
+        "documents"
+      );
+
+      setProjects(projectRecords);
+      setDocuments(documentRecords);
+
+      const validDocuments = documentRecords.filter(
+        (document) => idOf(document) != null
+      );
+
+      const results = await Promise.allSettled(
+        validDocuments.map(async (document) => {
+          const documentId = idOf(document);
+
+          const response = await getBenefits(
+            Number(documentId)
+          );
+
+          return {
+            documentId: String(documentId),
+            benefits: asArray(response, "benefits"),
+          };
+        })
+      );
+
+      const loadedBenefits = {};
+      const failedDocuments = [];
+
+      results.forEach((result, index) => {
+        if (result.status === "fulfilled") {
+          loadedBenefits[result.value.documentId] =
+            result.value.benefits;
+        } else {
+          failedDocuments.push(
+            idOf(validDocuments[index])
+          );
+        }
+      });
+
+      setBenefitsByDocument(loadedBenefits);
+
+      if (failedDocuments.length > 0) {
+        setError(
+          `Unable to load benefits for document(s): ${failedDocuments.join(
+            ", "
+          )}. Refresh to try again.`
+        );
+      }
+
+      setSelectedProjectId((previous) => {
+        const exists = projectRecords.some(
+          (project) =>
+            String(project.id) === String(previous)
+        );
+
+        if (exists) return String(previous);
+
+        const requestedDocument = validDocuments.find(
+          (document) =>
+            String(idOf(document)) ===
+            String(initialDocumentId)
+        );
+
+        const requestedProjectId = requestedDocument
+          ? projectIdOf(requestedDocument)
+          : null;
+
+        if (
+          requestedProjectId != null &&
+          projectRecords.some(
+            (project) =>
+              String(project.id) ===
+              String(requestedProjectId)
+          )
+        ) {
+          return String(requestedProjectId);
+        }
+
+        return projectRecords.length
+          ? String(projectRecords[0].id)
+          : "";
+      });
+    } catch (err) {
+      setError(
+        getErrorMessage(
+          err,
+          "Unable to load projects and documents."
+        )
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadAllData();
+  }, [loadAllData]);
+
+  // ==========================================
+  // PROJECT AND DOCUMENT SELECTION
+  // ==========================================
+
+  const selectedProject = useMemo(
+    () =>
+      projects.find(
+        (project) =>
+          String(project.id) ===
+          String(selectedProjectId)
+      ),
+    [projects, selectedProjectId]
+  );
+
+  const getProjectDocuments = useCallback(
+    (projectId) =>
+      documents.filter(
+        (document) =>
+          String(projectIdOf(document)) ===
+          String(projectId)
+      ),
+    [documents]
+  );
+
+  const selectedProjectDocuments = useMemo(
+    () => getProjectDocuments(selectedProjectId),
+    [getProjectDocuments, selectedProjectId]
+  );
+
+  useEffect(() => {
+    if (!selectedProjectId) {
+      setSelectedDocumentId("");
       return;
     }
-    setBenefitsLoading(true);
-    setBenefitsLoadError("");
-    try {
-      const response = await getBenefits(Number(documentId));
-      const records = Array.isArray(response?.benefits) ? response.benefits : Array.isArray(response) ? response : null;
-      if (!records) throw new Error("Unexpected benefits API response format.");
-      setDocumentBenefits(records);
-    } catch (error) {
-      setBenefitsLoadError(error?.message || "Unable to load extracted benefits.");
-      setDocumentBenefits([]);
-    } finally {
-      setBenefitsLoading(false);
-    }
-  }, [documentId]);
 
-  useEffect(() => { loadBenefits(); }, [loadBenefits]);
-  useEffect(() => {
-    const refresh = () => { if (documentId) loadBenefits(); };
-    window.addEventListener("focus", refresh);
-    return () => window.removeEventListener("focus", refresh);
-  }, [documentId, loadBenefits]);
+    setSelectedDocumentId((previous) => {
+      const exists = selectedProjectDocuments.some(
+        (document) =>
+          String(idOf(document)) === String(previous)
+      );
 
-  const exceptions = useMemo(() => documentBenefits.map((benefit, index) => {
-    const status = benefit.validation_status ?? benefit.status ?? "Unverified";
-    const manuallyAdded = Boolean(benefit.is_manually_added);
-    return {
-      id: `benefit-${benefit.id ?? index}`,
-      benefitId: benefit.id,
-      benefit: benefit.benefit_name || `Benefit ${index + 1}`,
-      sourceColumn: benefit.benefit_category || benefit.benefit_name || "Extracted benefit",
-      type: manuallyAdded ? "New Benefit" : "Validation",
-      status: isError(status) ? "Blocking" : "Pending",
-      benefitStatus: status,
-      priority: isError(status) ? "High" : "Medium",
-      description: benefit.validation_reason || "This benefit needs review against the source schedule.",
-      phase: manuallyAdded ? "Mapping Review" : "Validation",
-      createdAt: benefit.created_at ? String(benefit.created_at).slice(0, 10) : "Current document",
-      record: benefit,
-      cleared: isCleared(status),
-    };
-  }).filter(item => !item.cleared), [documentBenefits]);
+      if (exists) return previous;
 
-  const counts = {
-    all: exceptions.length,
-    unmapped: exceptions.filter(x => x.type === "Unmapped").length,
-    changeRequest: exceptions.filter(x => x.type === "New Benefit").length,
-    validation: exceptions.filter(x => x.type === "Validation").length,
-    blocking: exceptions.filter(x => x.status === "Blocking").length,
+      return selectedProjectDocuments.length
+        ? String(idOf(selectedProjectDocuments[0]))
+        : "";
+    });
+  }, [selectedProjectId, selectedProjectDocuments]);
+
+  const selectProject = (projectId) => {
+    const value = String(projectId);
+
+    setSelectedProjectId(value);
+    setSelectedDocumentId("");
+    setSelectedException(null);
+    setSearchTerm("");
+    setActiveFilter("All");
+    setNotice("");
+    setError("");
+
+    navigate(
+      `/underwriter/exceptions?projectId=${encodeURIComponent(
+        value
+      )}`,
+      { replace: true }
+    );
   };
-  const filtered = exceptions.filter(item => {
-    const matchesFilter = activeFilter === "All" || (activeFilter === "Blocking" ? item.status === "Blocking" : item.type === activeFilter);
-    const query = searchTerm.trim().toLowerCase();
-    return matchesFilter && [item.benefit, item.sourceColumn, item.type, item.status, item.description].some(value => String(value).toLowerCase().includes(query));
-  });
+
+  const selectDocument = (documentId) => {
+    const value = String(documentId);
+
+    setSelectedDocumentId(value);
+    setSelectedException(null);
+    setSearchTerm("");
+    setActiveFilter("All");
+
+    navigate(
+      `/underwriter/exceptions?projectId=${encodeURIComponent(
+        selectedProjectId
+      )}&documentId=${encodeURIComponent(value)}`,
+      { replace: true }
+    );
+  };
+
+  const selectedDocument = useMemo(
+    () =>
+      selectedProjectDocuments.find(
+        (document) =>
+          String(idOf(document)) ===
+          String(selectedDocumentId)
+      ),
+    [selectedProjectDocuments, selectedDocumentId]
+  );
+
+  // ==========================================
+  // PROJECT-LEVEL COMPLETION
+  // ==========================================
+
+  const getProjectSummary = useCallback(
+    (projectId) => {
+      const projectDocs = getProjectDocuments(projectId);
+
+      const allLoaded =
+        projectDocs.length > 0 &&
+        projectDocs.every((document) =>
+          Object.prototype.hasOwnProperty.call(
+            benefitsByDocument,
+            String(idOf(document))
+          )
+        );
+
+      const allBenefits = projectDocs.flatMap(
+        (document) =>
+          benefitsByDocument[String(idOf(document))] || []
+      );
+
+      const summary = summaryOf(allBenefits);
+
+      return {
+        ...summary,
+        documentCount: projectDocs.length,
+        allLoaded,
+        canProceed:
+          allLoaded &&
+          summary.total > 0 &&
+          summary.remaining === 0,
+      };
+    },
+    [getProjectDocuments, benefitsByDocument]
+  );
+
+  const projectSummary = useMemo(
+    () => getProjectSummary(selectedProjectId),
+    [getProjectSummary, selectedProjectId]
+  );
+
+  const documentBenefits = useMemo(
+    () =>
+      benefitsByDocument[String(selectedDocumentId)] ||
+      [],
+    [benefitsByDocument, selectedDocumentId]
+  );
+
+  const documentLoaded =
+    Object.prototype.hasOwnProperty.call(
+      benefitsByDocument,
+      String(selectedDocumentId)
+    );
+
+  const documentSummary = useMemo(
+    () => summaryOf(documentBenefits),
+    [documentBenefits]
+  );
+
+  // ==========================================
+  // EXCEPTIONS FOR SELECTED DOCUMENT
+  // ==========================================
+
+  const exceptions = useMemo(
+    () =>
+      documentBenefits
+        .filter((benefit) => !isCleared(benefit))
+        .map((benefit, index) => ({
+          id: benefit.id ?? index,
+          benefitId: benefit.id,
+          benefit:
+            benefit.benefit_name ||
+            `Benefit ${index + 1}`,
+          type: benefit.is_manually_added
+            ? "New Benefit"
+            : "Validation",
+          status:
+            benefit.validation_status ||
+            benefit.status ||
+            "Needs Review",
+          reason:
+            benefit.validation_reason ||
+            "Underwriter review required.",
+          record: benefit,
+        })),
+    [documentBenefits]
+  );
+
+  const filteredExceptions = useMemo(
+    () =>
+      exceptions.filter((item) => {
+        const query = normalize(searchTerm);
+
+        const matchesSearch = [
+          item.benefit,
+          item.type,
+          item.status,
+          item.reason,
+        ].some((value) =>
+          normalize(value).includes(query)
+        );
+
+        const matchesFilter =
+          activeFilter === "All" ||
+          (activeFilter === "Blocking"
+            ? [
+                "invalid",
+                "failed",
+                "mismatch",
+                "error",
+                "blocking",
+              ].includes(normalize(item.status))
+            : activeFilter === "New Benefit"
+              ? item.type === "New Benefit"
+              : item.type === "Validation");
+
+        return matchesSearch && matchesFilter;
+      }),
+    [exceptions, searchTerm, activeFilter]
+  );
+
+  // ==========================================
+  // RESOLUTION MODAL
+  // ==========================================
+
+  const openModal = (exception) => {
+    setSelectedException(exception);
+    setSelectedAction("");
+    setMappedToBenefit("");
+    setNewFieldName("");
+    setNotes("");
+    setError("");
+  };
 
   const closeModal = () => {
     setSelectedException(null);
     setSelectedAction("");
-    setNotes("");
     setMappedToBenefit("");
-  };
-  const openModal = (item) => {
-    setSelectedException(item);
-    setSelectedAction("");
+    setNewFieldName("");
     setNotes("");
-    setMappedToBenefit("");
-    setBenefitsLoadError("");
   };
 
+  const existingBenefitOptions = useMemo(
+    () =>
+      documentBenefits.filter(
+        (benefit) =>
+          benefit.id != null &&
+          String(benefit.id) !==
+            String(selectedException?.benefitId)
+      ),
+    [documentBenefits, selectedException]
+  );
+
   const handleResolve = async () => {
-    if (!selectedException || !selectedAction || !documentId || selectedException.benefitId == null) {
-      setBenefitsLoadError("Select an action and a saved benefit record before continuing.");
+    if (!selectedException || !selectedAction) {
+      setError("Please select a resolution action.");
       return;
     }
-    if (selectedAction === "map_existing" && !mappedToBenefit.trim()) {
-      setBenefitsLoadError("Enter the target benefit for mapping.");
+
+    if (
+      selectedAction === "map_existing" &&
+      !mappedToBenefit
+    ) {
+      setError("Please select an existing benefit.");
       return;
     }
+
+    if (
+      selectedAction === "raise_change_request" &&
+      !newFieldName.trim()
+    ) {
+      setError("Please enter a new field name.");
+      return;
+    }
+
     setSavingResolution(true);
-    setBenefitsLoadError("");
+    setError("");
+
     try {
-      await resolveBenefit(Number(documentId), Number(selectedException.benefitId), {
-        action: selectedAction,
-        mapped_to_benefit: selectedAction === "map_existing" ? mappedToBenefit.trim() : null,
-        notes: notes.trim() || null,
-        resolved_by: "Underwriter", // Replace with authenticated user's identity when available.
-      });
-      // Always reload the authoritative status. A change request or revalidation
-      // action is not necessarily a passed validation.
-      await loadBenefits();
+      await resolveBenefit(
+        Number(selectedDocumentId),
+        Number(selectedException.benefitId),
+        {
+          action: selectedAction,
+          notes: notes.trim() || null,
+          existing_field: null,
+          existing_benefit_id:
+            selectedAction === "map_existing"
+              ? Number(mappedToBenefit)
+              : null,
+          new_field_name:
+            selectedAction === "raise_change_request"
+              ? newFieldName.trim()
+              : null,
+        }
+      );
+
+      const response = await getBenefits(
+        Number(selectedDocumentId)
+      );
+
+      setBenefitsByDocument((previous) => ({
+        ...previous,
+        [String(selectedDocumentId)]: asArray(
+          response,
+          "benefits"
+        ),
+      }));
+
+      const savedAction = selectedAction;
+
       closeModal();
-    } catch (error) {
-      setBenefitsLoadError(error?.message || "Unable to save the resolution. Please try again.");
+
+      setNotice(
+        savedAction === "raise_change_request"
+          ? "Change request saved. Underwriter review is complete; Admin approval remains pending."
+          : "Exception resolved successfully."
+      );
+    } catch (err) {
+      setError(
+        getErrorMessage(
+          err,
+          "Unable to save the resolution."
+        )
+      );
     } finally {
       setSavingResolution(false);
     }
   };
 
-  const goToValidations = () => {
-    if (!documentId || benefitsLoading || benefitsLoadError || exceptions.length > 0) return;
-    navigate(`/underwriter/validations?documentId=${encodeURIComponent(documentId)}`, {
-      state: { ...location.state, documentId },
-    });
+  // ==========================================
+  // PROJECT-LEVEL PRICING HANDOFF
+  // ==========================================
+
+  const handleProceedToPricing = async () => {
+    if (
+      !selectedProject ||
+      !projectSummary.canProceed ||
+      proceeding
+    ) {
+      return;
+    }
+
+    const projectId = Number(selectedProjectId);
+
+    setProceeding(true);
+    setError("");
+    setNotice("");
+
+    try {
+      /*
+        REQUIRED FASTAPI INTEGRATION
+
+        Before navigating, call a backend endpoint
+        that verifies all documents in this project
+        have completed their Underwriter reviews,
+        then saves the project-level Pricing handoff.
+
+        Suggested API:
+        POST /api/projects/{projectId}/proceed-to-pricing
+
+        Add the corresponding function to
+        services/apis.js and call it here.
+
+        Example after implementation:
+
+        await proceedProjectToPricing(projectId);
+
+        navigate(
+          `/underwriter/pricing?projectId=${projectId}`,
+          { state: { projectId } }
+        );
+      */
+
+      throw new Error(
+        "Project Pricing handoff API is not connected yet. Connect the FastAPI endpoint before proceeding."
+      );
+    } catch (err) {
+      setError(
+        getErrorMessage(
+          err,
+          "Unable to move the project to Pricing."
+        )
+      );
+    } finally {
+      setProceeding(false);
+    }
   };
 
-  const summary = [
-    { label: "All Exceptions", count: counts.all, filter: "All", Icon: AlertTriangle },
-    { label: "Unmapped", count: counts.unmapped, filter: "Unmapped", Icon: Map },
-    { label: "Change Requests", count: counts.changeRequest, filter: "New Benefit", Icon: GitPullRequest },
-    { label: "Validation", count: counts.validation, filter: "Validation", Icon: XCircle },
-    { label: "Blocking", count: counts.blocking, filter: "Blocking", Icon: FileWarning },
-  ];
+  // ==========================================
+  // UI
+  // ==========================================
 
   return (
-    <div className="min-h-[calc(100vh-5rem)] bg-[#F7F5EF] p-4 lg:p-8">
-      <header className="mb-6 flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#FBE8C5] text-[#B87912]"><AlertTriangle size={23} /></div>
-          <div><h1 className="text-2xl font-bold text-[#12352B]">Exceptions</h1><p className="mt-1 text-sm text-[#60756B]">Review and resolve items that require attention before proceeding.</p></div>
+    <div className="min-h-screen bg-[#F7F5EF] p-4 lg:p-8">
+      {/* HEADER */}
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-[#12352B]">
+            Exceptions
+          </h1>
+          <p className="mt-1 text-sm text-[#60756B]">
+            Select a project, review its documents,
+            and proceed to Pricing when all exceptions
+            are cleared.
+          </p>
         </div>
-        <div className="flex items-center gap-3">
-          <span className="rounded-full bg-[#FFF0D8] px-4 py-2 text-xs font-bold text-[#B87912]">{counts.all} Active Exceptions</span>
-          <span className="text-xs text-[#71837B]">Document #{documentId || "Not selected"}</span>
-          <button type="button" onClick={loadBenefits} disabled={benefitsLoading} className="flex items-center gap-2 rounded-lg border border-[#D5E2DA] bg-white px-3 py-2 text-xs font-semibold text-[#1E5A45] disabled:opacity-50"><RefreshCw size={15} /> {benefitsLoading ? "Loading..." : "Refresh"}</button>
-        </div>
-      </header>
 
-      {benefitsLoadError && <div role="alert" className="mb-5 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">{benefitsLoadError}</div>}
+        <button
+          type="button"
+          onClick={loadAllData}
+          disabled={loading}
+          className="flex items-center gap-2 rounded-lg border border-[#D5E2DA] bg-white px-4 py-2 text-sm font-medium text-[#1E5A45] disabled:opacity-50"
+        >
+          <RefreshCw size={16} />
+          Refresh
+        </button>
+      </div>
 
-      <section className="mb-5 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
-        {summary.map(({ label, count, filter, Icon }) => (
-          <button key={label} type="button" onClick={() => setActiveFilter(filter)} className={`rounded-xl border p-4 text-left transition-colors ${activeFilter === filter ? "border-[#9FCBB0] bg-[#E8F2EC]" : "border-[#D5E2DA] bg-white hover:bg-[#F2F7F4]"}`}>
-            <div className="flex items-start justify-between"><div><p className="text-xs font-semibold text-[#60756B]">{label}</p><p className={`mt-2 text-2xl font-bold ${filter === "Blocking" ? "text-[#C94C4C]" : "text-[#12352B]"}`}>{count}</p><p className="mt-1 text-[11px] text-[#71837B]">Active</p></div><Icon size={20} className="text-[#1E5A45]" /></div>
-          </button>
-        ))}
-      </section>
+      {notice && (
+        <div className="mb-5 rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-800">
+          {notice}
+        </div>
+      )}
 
-      <section className="overflow-hidden rounded-xl border border-[#D5E2DA] bg-white shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#D5E2DA] p-5">
-          <div><h2 className="text-sm font-bold text-[#12352B]">Active Exceptions</h2><p className="mt-1 text-xs text-[#71837B]">Only unresolved benefits from the current document appear here.</p></div>
-          <div className="relative"><Search size={16} className="absolute left-3 top-3 text-[#71837B]" /><input value={searchTerm} onChange={event => setSearchTerm(event.target.value)} placeholder="Search exceptions..." className="h-10 rounded-lg border border-[#D5E2DA] bg-[#F7F5EF] pl-9 pr-4 text-sm outline-none focus:border-[#1E5A45]" /></div>
+      {error && !selectedException && (
+        <div className="mb-5 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          {error}
         </div>
-        <div className="flex flex-wrap gap-2 border-b border-[#E5ECE8] px-5 py-3">
-          {["All", "Unmapped", "New Benefit", "Validation", "Blocking"].map(filter => <button key={filter} type="button" onClick={() => setActiveFilter(filter)} className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${activeFilter === filter ? "bg-[#1E5A45] text-white" : "bg-[#F2F7F4] text-[#526C61] hover:bg-[#E8F2EC]"}`}>{filter}</button>)}
+      )}
+
+      {/* ALL PROJECTS */}
+      <section className="mb-6 rounded-xl border border-[#D5E2DA] bg-white p-5">
+        <div className="mb-5">
+          <h2 className="text-lg font-semibold text-[#12352B]">
+            All Projects
+          </h2>
+          <p className="mt-1 text-xs text-gray-500">
+            Select a project to view its documents
+            and review completion.
+          </p>
         </div>
-        {benefitsLoading ? <p className="p-10 text-center text-sm text-[#60756B]">Loading exceptions...</p> : benefitsLoadError ? <p className="p-10 text-center text-sm text-red-600">Unable to display exceptions until the records load.</p> : filtered.length === 0 ? (
-          <div className="px-6 py-16 text-center"><CheckCircle2 size={28} className="mx-auto text-[#1E8E68]" /><h3 className="mt-4 text-sm font-bold text-[#12352B]">{counts.all === 0 ? "No active exceptions" : "No matching exceptions"}</h3><p className="mt-1 text-xs text-[#71837B]">{counts.all === 0 ? "All current benefit checks are cleared, or no records are available." : "Try another filter or search."}</p></div>
+
+        {loading ? (
+          <p className="py-8 text-center text-sm text-gray-500">
+            Loading projects...
+          </p>
+        ) : projects.length === 0 ? (
+          <p className="py-8 text-center text-sm text-gray-500">
+            No projects found.
+          </p>
         ) : (
-          <div className="overflow-x-auto"><table className="w-full min-w-[900px] text-left"><thead className="bg-[#F2F7F4] text-xs text-[#526C61]"><tr>{["Benefit", "Exception Type", "Source Column", "Phase", "Priority", "Status", "Action"].map(h => <th key={h} className="px-5 py-3">{h}</th>)}</tr></thead><tbody>{filtered.map(item => <tr key={item.id} className="border-t border-[#E5ECE8] text-sm text-[#526C61] hover:bg-[#FAFCFB]"><td className="px-5 py-4"><p className="font-semibold text-[#29483D]">{item.benefit}</p><p className="mt-1 text-[11px] text-[#87958F]">Created {item.createdAt}</p></td><td className="px-5 py-4">{item.type}</td><td className="px-5 py-4">{item.sourceColumn}</td><td className="px-5 py-4">{item.phase}</td><td className={`px-5 py-4 font-semibold ${item.priority === "High" ? "text-red-600" : "text-amber-600"}`}>{item.priority}</td><td className={`px-5 py-4 font-semibold ${item.status === "Blocking" ? "text-red-600" : "text-amber-600"}`}>{item.status}</td><td className="px-5 py-4"><button type="button" onClick={() => openModal(item)} className="flex items-center gap-1 rounded-lg border border-[#1E5A45] px-3 py-2 text-xs font-semibold text-[#1E5A45] hover:bg-[#E8F2EC]">Review <ArrowRight size={14} /></button></td></tr>)}</tbody></table></div>
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {projects.map((project) => {
+              const summary = getProjectSummary(project.id);
+              const selected =
+                String(selectedProjectId) ===
+                String(project.id);
+
+              return (
+                <button
+                  key={project.id}
+                  type="button"
+                  onClick={() => selectProject(project.id)}
+                  className={`rounded-xl border p-5 text-left transition-all ${
+                    selected
+                      ? "border-[#1E5A45] bg-[#E8F2EC] shadow-sm"
+                      : "border-[#D5E2DA] bg-white hover:border-[#9FCBB0]"
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <FolderOpen
+                        size={20}
+                        className="text-[#1E5A45]"
+                      />
+                      <div>
+                        <h3 className="font-semibold text-[#12352B]">
+                          {projectName(project)}
+                        </h3>
+                        <p className="mt-1 text-xs text-gray-500">
+                          {summary.documentCount} document(s)
+                        </p>
+                      </div>
+                    </div>
+
+                    {selected && (
+                      <CheckCircle2
+                        size={18}
+                        className="text-[#1E5A45]"
+                      />
+                    )}
+                  </div>
+
+                  <div className="mt-5 flex items-center justify-between">
+                    <span className="text-xs text-gray-500">
+                      Review Progress
+                    </span>
+                    <span
+                      className={`text-lg font-bold ${
+                        summary.canProceed
+                          ? "text-green-600"
+                          : "text-[#12352B]"
+                      }`}
+                    >
+                      {summary.allLoaded
+                        ? `${summary.percentage}%`
+                        : "Unavailable"}
+                    </span>
+                  </div>
+
+                  <div className="mt-2 h-2 overflow-hidden rounded-full bg-[#DCE9E1]">
+                    <div
+                      className={`h-full rounded-full ${
+                        summary.canProceed
+                          ? "bg-[#16A34A]"
+                          : "bg-[#D4A34B]"
+                      }`}
+                      style={{
+                        width: `${
+                          summary.allLoaded
+                            ? summary.percentage
+                            : 0
+                        }%`,
+                      }}
+                    />
+                  </div>
+
+                  <p
+                    className={`mt-3 text-xs font-semibold ${
+                      summary.canProceed
+                        ? "text-green-600"
+                        : "text-amber-700"
+                    }`}
+                  >
+                    {!summary.allLoaded
+                      ? "Document data incomplete"
+                      : summary.canProceed
+                        ? "Ready for Pricing"
+                        : `${summary.remaining} review(s) pending`}
+                  </p>
+                </button>
+              );
+            })}
+          </div>
         )}
       </section>
 
-      <footer className="mt-5 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-[#D5E2DA] bg-white p-5 shadow-sm">
-        <div className="flex items-center gap-3"><CheckCircle2 size={20} className="text-[#1E8E68]" /><div><p className="text-sm font-semibold text-[#12352B]">Exception status</p><p className="mt-1 text-xs text-[#71837B]">{benefitsLoading ? "Checking..." : counts.all === 0 ? "No unresolved exceptions in loaded records." : `${counts.all} exception(s) still require attention.`}</p></div></div>
-        <button type="button" onClick={goToValidations} disabled={!documentId || benefitsLoading || Boolean(benefitsLoadError) || documentBenefits.length === 0 || counts.all > 0} className="flex items-center gap-2 rounded-lg bg-[#1E5A45] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#164A38] disabled:cursor-not-allowed disabled:bg-[#CBD6D0] disabled:text-[#71837B]">Continue to Validations <ArrowRight size={17} /></button>
-      </footer>
+      {/* SELECTED PROJECT */}
+      {selectedProject && (
+        <>
+          <section className="mb-6 rounded-xl border border-[#D5E2DA] bg-white p-5">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase text-[#71837B]">
+                  Selected Project
+                </p>
+                <h2 className="mt-1 text-xl font-bold text-[#12352B]">
+                  {projectName(selectedProject)}
+                </h2>
+                <p className="mt-2 text-sm text-[#60756B]">
+                  {projectSummary.documentCount} documents ·{" "}
+                  {projectSummary.total} benefits
+                </p>
+              </div>
 
-      {selectedException && <div className="fixed inset-0 z-[100] overflow-y-auto bg-black/50 p-3 sm:p-5" role="presentation"><div role="dialog" aria-modal="true" aria-label="Review Exception" className="mx-auto my-4 flex max-h-[calc(100vh-2rem)] w-full max-w-2xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl">
-        <div className="flex shrink-0 items-center justify-between border-b border-[#D5E2DA] px-5 py-4"><div><h2 className="font-bold text-[#12352B]">Review Exception</h2><p className="mt-1 text-xs text-[#71837B]">{selectedException.benefit}</p></div><button type="button" onClick={closeModal} disabled={savingResolution} aria-label="Close" className="rounded-lg p-2 hover:bg-[#E8F2EC]"><X size={19} /></button></div>
-        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-5">
-          <div className="grid grid-cols-2 gap-4"><InfoItem label="Exception Type" value={selectedException.type} /><InfoItem label="Status" value={selectedException.status} /><InfoItem label="Source Column" value={selectedException.sourceColumn} /><InfoItem label="Phase" value={selectedException.phase} /></div>
-          <div className="rounded-lg border border-[#D5E2DA] bg-[#F7F5EF] p-4"><p className="text-xs font-semibold text-[#526C61]">Description</p><p className="mt-1 text-sm text-[#385348]">{selectedException.description}</p></div>
-          <div className="overflow-hidden rounded-lg border border-[#D5E2DA]"><h3 className="border-b border-[#D5E2DA] bg-[#F2F7F4] px-4 py-3 text-sm font-bold text-[#12352B]">Extracted Benefit Details · Document #{documentId}</h3><div className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2">{[
-            ["Benefit", "benefit_name"], ["Category", "benefit_category"], ["Limit", "limits"], ["Percentage", "percentages"], ["Visits", "visits"], ["Deductible", "deductibles"], ["Copay / UCR", "copay_ucr"], ["Treatment", "benefit_treatment"], ["Extraction confidence", "extraction_confidence"], ["Benefit record ID", "id"], ["Validation status", "validation_status"], ["Validation reason", "validation_reason"],
-          ].map(([label, key]) => <InfoItem key={key} label={label} value={selectedException.record[key]} />)}<div className="sm:col-span-2"><InfoItem label="Source excerpt" value={selectedException.record.source_excerpt} /></div><div className="sm:col-span-2"><p className="text-[11px] font-semibold uppercase text-[#71837B]">Other attributes</p><pre className="mt-1 whitespace-pre-wrap break-words text-xs text-[#385348]">{selectedException.record.other_attributes ? JSON.stringify(selectedException.record.other_attributes, null, 2) : "N/A"}</pre></div></div></div>
-          <div><h3 className="mb-3 text-sm font-bold text-[#12352B]">Choose an action</h3><div className="space-y-2">{actions.map(action => <button type="button" key={action.value} onClick={() => setSelectedAction(action.value)} className={`w-full rounded-lg border p-3.5 text-left ${selectedAction === action.value ? "border-[#1E5A45] bg-[#E8F2EC]" : "border-[#D5E2DA] hover:bg-[#FAFCFB]"}`}><div className="flex items-center gap-3"><span className={`h-4 w-4 shrink-0 rounded-full border ${selectedAction === action.value ? "border-4 border-[#1E5A45]" : "border-[#A8B6AF]"}`} /><div><p className="text-sm font-semibold text-[#12352B]">{action.label}</p><p className="mt-1 text-xs text-[#71837B]">{action.description}</p></div></div></button>)}</div></div>
-          {selectedAction === "map_existing" && <div><label htmlFor="mapped-benefit" className="mb-2 block text-xs font-semibold text-[#526C61]">Existing target benefit</label><input id="mapped-benefit" value={mappedToBenefit} onChange={event => setMappedToBenefit(event.target.value)} className="w-full rounded-lg border border-[#D5E2DA] p-3 text-sm" placeholder="Enter existing benefit name or mapping reference" /></div>}
-          <div><label htmlFor="resolution-notes" className="mb-2 block text-xs font-semibold text-[#526C61]">Resolution notes (optional)</label><textarea id="resolution-notes" rows={3} value={notes} onChange={event => setNotes(event.target.value)} className="w-full rounded-lg border border-[#D5E2DA] p-3 text-sm" placeholder="Explain your decision..." /></div>
-          {benefitsLoadError && <p role="alert" className="text-sm text-red-600">{benefitsLoadError}</p>}
+              <div className="text-right">
+                <p className="text-3xl font-bold text-[#12352B]">
+                  {projectSummary.allLoaded
+                    ? `${projectSummary.percentage}%`
+                    : "—"}
+                </p>
+                <p className="text-xs text-gray-500">
+                  Project Completion
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-4">
+              {[
+                ["Total Benefits", projectSummary.total],
+                ["Completed", projectSummary.completed],
+                ["Remaining", projectSummary.remaining],
+                ["Admin Pending", projectSummary.adminPending],
+              ].map(([label, value]) => (
+                <div
+                  key={label}
+                  className="rounded-lg bg-[#F2F7F4] p-4"
+                >
+                  <p className="text-xs text-gray-500">
+                    {label}
+                  </p>
+                  <p className="mt-2 text-xl font-bold text-[#12352B]">
+                    {value}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {/* DOCUMENTS */}
+          <section className="mb-6 overflow-hidden rounded-xl border border-[#D5E2DA] bg-white">
+            <div className="border-b border-[#D5E2DA] p-5">
+              <h2 className="font-semibold text-[#12352B]">
+                Project Documents
+              </h2>
+              <p className="mt-1 text-xs text-gray-500">
+                Choose a document to review its exceptions.
+              </p>
+            </div>
+
+            {selectedProjectDocuments.length === 0 ? (
+              <p className="p-8 text-center text-sm text-gray-500">
+                No documents found for this project.
+              </p>
+            ) : (
+              <div className="divide-y divide-[#E5ECE8]">
+                {selectedProjectDocuments.map((document) => {
+                  const documentId = String(idOf(document));
+
+                  const loaded =
+                    Object.prototype.hasOwnProperty.call(
+                      benefitsByDocument,
+                      documentId
+                    );
+
+                  const summary = summaryOf(
+                    benefitsByDocument[documentId] || []
+                  );
+
+                  const selected =
+                    selectedDocumentId === documentId;
+
+                  return (
+                    <button
+                      key={documentId}
+                      type="button"
+                      onClick={() => selectDocument(documentId)}
+                      className={`flex w-full items-center justify-between gap-4 p-5 text-left ${
+                        selected
+                          ? "bg-[#E8F2EC]"
+                          : "hover:bg-[#F8FBF9]"
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <FileText
+                          size={20}
+                          className="text-[#1E5A45]"
+                        />
+                        <div>
+                          <p className="font-semibold text-[#12352B]">
+                            {documentName(document)}
+                          </p>
+                          <p className="mt-1 text-xs text-gray-500">
+                            {loaded
+                              ? `${summary.completed} of ${summary.total} reviewed`
+                              : "Benefits not loaded"}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        <span
+                          className={`text-sm font-semibold ${
+                            loaded && summary.canProceed
+                              ? "text-green-600"
+                              : "text-amber-600"
+                          }`}
+                        >
+                          {loaded
+                            ? `${summary.percentage}%`
+                            : "—"}
+                        </span>
+                        <ChevronRight size={17} />
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+
+          {/* SELECTED DOCUMENT EXCEPTIONS */}
+          {selectedDocument && (
+            <section className="overflow-hidden rounded-xl border border-[#D5E2DA] bg-white">
+              <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#D5E2DA] p-5">
+                <div>
+                  <h2 className="font-semibold text-[#12352B]">
+                    Exceptions — {documentName(selectedDocument)}
+                  </h2>
+                  <p className="mt-1 text-xs text-gray-500">
+                    {documentSummary.remaining} review(s) remaining
+                    for this document.
+                  </p>
+                </div>
+
+                <div className="relative">
+                  <Search
+                    size={16}
+                    className="absolute left-3 top-3 text-gray-400"
+                  />
+                  <input
+                    value={searchTerm}
+                    onChange={(event) =>
+                      setSearchTerm(event.target.value)
+                    }
+                    placeholder="Search exceptions..."
+                    className="rounded-lg border border-[#D5E2DA] py-2 pl-9 pr-3 text-sm outline-none focus:border-[#1E5A45]"
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-2 border-b border-[#E5ECE8] p-4">
+                {["All", "Validation", "New Benefit", "Blocking"].map(
+                  (filter) => (
+                    <button
+                      key={filter}
+                      type="button"
+                      onClick={() => setActiveFilter(filter)}
+                      className={`rounded-lg px-3 py-2 text-xs font-semibold ${
+                        activeFilter === filter
+                          ? "bg-[#1E5A45] text-white"
+                          : "bg-[#F2F7F4] text-[#526C61]"
+                      }`}
+                    >
+                      {filter}
+                    </button>
+                  )
+                )}
+              </div>
+
+              {!documentLoaded ? (
+                <p className="p-10 text-center text-sm text-gray-500">
+                  Unable to load this document's benefits.
+                </p>
+              ) : filteredExceptions.length === 0 ? (
+                <div className="p-12 text-center">
+                  <CheckCircle2
+                    size={30}
+                    className="mx-auto text-green-600"
+                  />
+                  <p className="mt-3 font-semibold text-[#12352B]">
+                    {exceptions.length === 0
+                      ? "All Exceptions Cleared"
+                      : "No Matching Exceptions"}
+                  </p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[750px] text-left">
+                    <thead className="bg-[#F2F7F4] text-xs text-[#526C61]">
+                      <tr>
+                        {[
+                          "Benefit",
+                          "Type",
+                          "Status",
+                          "Reason",
+                          "Action",
+                        ].map((heading) => (
+                          <th
+                            key={heading}
+                            className="px-5 py-4"
+                          >
+                            {heading}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+
+                    <tbody>
+                      {filteredExceptions.map((item) => (
+                        <tr
+                          key={item.id}
+                          className="border-t border-[#E5ECE8] text-sm"
+                        >
+                          <td className="px-5 py-4 font-semibold text-[#12352B]">
+                            {item.benefit}
+                          </td>
+                          <td className="px-5 py-4">
+                            {item.type}
+                          </td>
+                          <td className="px-5 py-4 text-amber-700">
+                            {item.status}
+                          </td>
+                          <td className="px-5 py-4 text-gray-600">
+                            {item.reason}
+                          </td>
+                          <td className="px-5 py-4">
+                            <button
+                              type="button"
+                              onClick={() => openModal(item)}
+                              className="rounded-lg border border-[#1E5A45] px-4 py-2 text-xs font-semibold text-[#1E5A45]"
+                            >
+                              Review
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+          )}
+
+          {/* PROJECT-LEVEL SAVE & PROCEED */}
+          <footer className="mt-6 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-[#D5E2DA] bg-white p-5">
+            <div>
+              <p className="font-semibold text-[#12352B]">
+                {projectSummary.canProceed
+                  ? "Project Review Complete"
+                  : "Project Review In Progress"}
+              </p>
+
+              <p className="mt-1 text-xs text-gray-500">
+                {projectSummary.canProceed
+                  ? "All exceptions across every document are cleared. This project is ready for Pricing."
+                  : `${projectSummary.remaining} benefit review(s) remaining across this project.`}
+              </p>
+
+              {projectSummary.adminPending > 0 && (
+                <p className="mt-2 text-xs text-amber-700">
+                  {projectSummary.adminPending} change request(s)
+                  pending Admin approval.
+                </p>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={handleProceedToPricing}
+              disabled={
+                !projectSummary.canProceed || proceeding
+              }
+              className={`flex items-center gap-2 rounded-lg px-6 py-3 text-sm font-semibold transition-all ${
+                projectSummary.canProceed
+                  ? "bg-[#16A34A] text-white shadow-sm hover:bg-[#15803D]"
+                  : "cursor-not-allowed bg-gray-200 text-gray-500"
+              }`}
+            >
+              {proceeding
+                ? "Saving..."
+                : "Save & Proceed to options"}
+              <ArrowRight size={17} />
+            </button>
+          </footer>
+        </>
+      )}
+
+      {/* RESOLUTION MODAL */}
+      {selectedException && (
+        <div className="fixed inset-0 z-[100] overflow-y-auto bg-black/50 p-4">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Review Exception"
+            className="mx-auto my-5 flex max-h-[calc(100vh-3rem)] w-full max-w-2xl flex-col overflow-hidden rounded-xl bg-white shadow-xl"
+          >
+            <div className="flex items-center justify-between border-b border-[#D5E2DA] p-5">
+              <div>
+                <h2 className="font-bold text-[#12352B]">
+                  Review Exception
+                </h2>
+                <p className="mt-1 text-xs text-gray-500">
+                  {selectedException.benefit}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={closeModal}
+                disabled={savingResolution}
+                aria-label="Close"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="flex-1 space-y-5 overflow-y-auto p-5">
+              <div className="rounded-lg bg-[#F7F5EF] p-4">
+                <p className="text-sm font-semibold text-[#12352B]">
+                  {selectedException.benefit}
+                </p>
+                <p className="mt-2 text-sm text-gray-600">
+                  {selectedException.reason}
+                </p>
+              </div>
+
+              <div>
+                <h3 className="mb-3 font-semibold text-[#12352B]">
+                  Choose an Action
+                </h3>
+
+                <div className="space-y-2">
+                  {ACTIONS.map((action) => (
+                    <button
+                      key={action.value}
+                      type="button"
+                      onClick={() => {
+                        setSelectedAction(action.value);
+                        setError("");
+                      }}
+                      disabled={savingResolution}
+                      className={`w-full rounded-lg border p-4 text-left ${
+                        selectedAction === action.value
+                          ? "border-[#1E5A45] bg-[#E8F2EC]"
+                          : "border-[#D5E2DA]"
+                      }`}
+                    >
+                      <p className="text-sm font-semibold text-[#12352B]">
+                        {action.label}
+                      </p>
+                      <p className="mt-1 text-xs text-gray-500">
+                        {action.description}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {selectedAction === "map_existing" && (
+                <div>
+                  <label
+                    htmlFor="existing-benefit"
+                    className="mb-2 block text-sm font-semibold text-[#12352B]"
+                  >
+                    Existing Benefit *
+                  </label>
+                  <select
+                    id="existing-benefit"
+                    value={mappedToBenefit}
+                    onChange={(event) =>
+                      setMappedToBenefit(event.target.value)
+                    }
+                    className="w-full rounded-lg border border-[#D5E2DA] p-3 text-sm"
+                  >
+                    <option value="">
+                      -- Select Benefit --
+                    </option>
+                    {existingBenefitOptions.map((benefit) => (
+                      <option
+                        key={benefit.id}
+                        value={benefit.id}
+                      >
+                        {benefit.benefit_name ||
+                          `Benefit ${benefit.id}`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {selectedAction === "raise_change_request" && (
+                <div>
+                  <label
+                    htmlFor="new-field-name"
+                    className="mb-2 block text-sm font-semibold text-[#12352B]"
+                  >
+                    New Field Name *
+                  </label>
+                  <input
+                    id="new-field-name"
+                    value={newFieldName}
+                    onChange={(event) =>
+                      setNewFieldName(event.target.value)
+                    }
+                    placeholder="Enter new field name"
+                    className="w-full rounded-lg border border-[#D5E2DA] p-3 text-sm"
+                  />
+                  <p className="mt-2 text-xs text-amber-700">
+                    This change request will require Admin approval.
+                  </p>
+                </div>
+              )}
+
+              <div>
+                <label
+                  htmlFor="resolution-notes"
+                  className="mb-2 block text-sm font-semibold text-[#12352B]"
+                >
+                  Resolution Notes
+                </label>
+                <textarea
+                  id="resolution-notes"
+                  rows={3}
+                  value={notes}
+                  onChange={(event) =>
+                    setNotes(event.target.value)
+                  }
+                  placeholder="Enter notes..."
+                  className="w-full rounded-lg border border-[#D5E2DA] p-3 text-sm"
+                />
+              </div>
+
+              {error && (
+                <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                  {error}
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-3 border-t border-[#D5E2DA] p-5">
+              <button
+                type="button"
+                onClick={closeModal}
+                disabled={savingResolution}
+                className="rounded-lg border border-[#D5E2DA] px-5 py-2 text-sm"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={handleResolve}
+                disabled={
+                  !selectedAction ||
+                  savingResolution ||
+                  (selectedAction === "map_existing" &&
+                    !mappedToBenefit) ||
+                  (selectedAction === "raise_change_request" &&
+                    !newFieldName.trim())
+                }
+                className="rounded-lg bg-[#1E5A45] px-5 py-2 text-sm font-semibold text-white disabled:opacity-50"
+              >
+                {savingResolution
+                  ? "Saving..."
+                  : "Save Decision"}
+              </button>
+            </div>
+          </div>
         </div>
-        <div className="flex shrink-0 justify-end gap-3 border-t border-[#D5E2DA] bg-white px-5 py-4"><button type="button" onClick={closeModal} disabled={savingResolution} className="rounded-lg border border-[#D5E2DA] px-4 py-2 text-sm font-semibold text-[#526C61]">Cancel</button><button type="button" onClick={handleResolve} disabled={!selectedAction || savingResolution} className="rounded-lg bg-[#1E5A45] px-5 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">{savingResolution ? "Saving..." : "Save Decision"}</button></div>
-      </div></div>}
+      )}
     </div>
   );
 }

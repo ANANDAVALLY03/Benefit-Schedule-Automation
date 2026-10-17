@@ -1,11 +1,12 @@
+
 const API_BASE_URL = (
   import.meta.env.VITE_API_BASE_URL ||
   "http://localhost:8000"
 ).replace(/\/+$/, "");
 
-// --------------------------------------------
+// ============================================
 // COMMON RESPONSE HANDLER
-// --------------------------------------------
+// ============================================
 
 async function handleResponse(response) {
   const data = await response.json().catch(() => ({}));
@@ -65,7 +66,6 @@ export async function uploadDocument(formData) {
 }
 
 // GET ALL PROJECTS
-// Returns one row per project
 
 export async function getProjects() {
   const response = await fetch(
@@ -88,8 +88,6 @@ export async function getProjects() {
 }
 
 // GET PROJECT DETAILS
-// Used when clicking Reopen
-// Includes version history
 
 export async function getProject(projectId) {
   if (!projectId) {
@@ -103,8 +101,7 @@ export async function getProject(projectId) {
   return handleResponse(response);
 }
 
-// UPLOAD NEW VERSION
-// Creates V2, V3, V4... under same project
+// UPLOAD NEW PROJECT VERSION
 
 export async function uploadProjectVersion(
   projectId,
@@ -136,7 +133,6 @@ export async function uploadProjectVersion(
 // ============================================
 
 // GET ALL DOCUMENTS
-// Returns individual document versions
 
 export async function getDocuments() {
   const response = await fetch(
@@ -173,14 +169,13 @@ export async function getDocument(documentId) {
 }
 
 // Alias for existing components
-
 export const getDocumentDetails = getDocument;
 
 // ============================================
 // BENEFITS APIs
 // ============================================
 
-// GET EXTRACTED BENEFITS
+// GET EXTRACTED BENEFITS BY DOCUMENT
 
 export async function getBenefits(documentId) {
   if (!documentId) {
@@ -194,17 +189,107 @@ export async function getBenefits(documentId) {
   return handleResponse(response);
 }
 
-// VALIDATE EXTRACTED BENEFITS
+// VALIDATE BENEFITS AND SAVE RESULTS
 
 export async function validateDocumentBenefits(documentId) {
-  return handleResponse(
-    await fetch(
-      `${API_BASE_URL}/api/benefits/validate/${documentId}`,
-      { method: "POST" }
-    )
+  if (!documentId) {
+    throw new Error("Document ID is required.");
+  }
+
+  const response = await fetch(
+    `${API_BASE_URL}/api/benefits/validate/${documentId}`,
+    {
+      method: "POST",
+    }
   );
+
+  return handleResponse(response);
 }
 
+// ============================================
+// RESOLVE BENEFIT EXCEPTIONS
+// ============================================
+
+// Supported actions:
+// 1. map_existing
+// 2. mark_na
+// 3. raise_change_request
+
+export async function resolveBenefit(
+  documentId,
+  benefitId,
+  payload
+) {
+  if (!documentId) {
+    throw new Error("Document ID is required.");
+  }
+
+  if (!benefitId) {
+    throw new Error("Benefit ID is required.");
+  }
+
+  const allowedActions = [
+    "map_existing",
+    "mark_na",
+    "raise_change_request",
+  ];
+
+  if (!payload || !allowedActions.includes(payload.action)) {
+    throw new Error("Invalid exception action selected.");
+  }
+
+  // Validate Map to Existing
+  if (payload.action === "map_existing") {
+    if (
+      !payload.existing_benefit_id &&
+      !payload.existing_field?.trim()
+    ) {
+      throw new Error(
+        "Please select an existing benefit or field."
+      );
+    }
+  }
+
+  // Validate Raise Change Request
+  if (payload.action === "raise_change_request") {
+    if (!payload.new_field_name?.trim()) {
+      throw new Error(
+        "Please enter the new field name."
+      );
+    }
+  }
+
+  const requestBody = {
+    document_id: Number(documentId),
+    action: payload.action,
+    notes: payload.notes || null,
+    existing_benefit_id:
+      payload.existing_benefit_id
+        ? Number(payload.existing_benefit_id)
+        : null,
+    existing_field:
+      payload.existing_field?.trim() || null,
+    new_field_name:
+      payload.new_field_name?.trim() || null,
+  };
+
+  const response = await fetch(
+    `${API_BASE_URL}/api/benefits/${benefitId}/resolve`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(requestBody),
+    }
+  );
+
+  return handleResponse(response);
+}
+
+// ============================================
+// SEARCH DOCUMENTS
+// ============================================
 
 export async function searchDocuments(
   query,
@@ -247,11 +332,8 @@ export function getOriginalDocumentUrl(
 }
 
 // GET ORIGINAL DOCUMENT AS BLOB
-// Used for PDF preview
 
-export async function getOriginalDocument(
-  documentId
-) {
+export async function getOriginalDocument(documentId) {
   const response = await fetch(
     getOriginalDocumentUrl(documentId, true)
   );
@@ -264,7 +346,6 @@ export async function getOriginalDocument(
 }
 
 // DOWNLOAD ORIGINAL DOCUMENT
-// Supports PDFs and Excel files
 
 export async function downloadOriginalDocument(
   documentId,
@@ -297,39 +378,3 @@ export async function downloadOriginalDocument(
     window.URL.revokeObjectURL(url);
   }, 1000);
 }
-
-export const resolveBenefit = async (
-  documentId,
-  benefitId,
-  payload
-) => {
-  const baseUrl = (
-    import.meta.env.VITE_API_BASE_URL ||
-    "http://localhost:8000"
-  ).replace(/\/+$/, "");
-
-  const response = await fetch(
-    `${baseUrl}/api/benefits/${benefitId}/resolve`,
-    {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        ...payload,
-        document_id: documentId,
-      }),
-    }
-  );
-
-  const data = await response.json().catch(() => null);
-
-  if (!response.ok) {
-    throw new Error(
-      data?.detail ||
-      `Failed to resolve benefit (HTTP ${response.status})`
-    );
-  }
-
-  return data;
-};
