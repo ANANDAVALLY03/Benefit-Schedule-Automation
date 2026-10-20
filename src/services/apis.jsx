@@ -359,6 +359,40 @@ export function getOriginalDocumentUrl(
   );
 }
 
+
+export async function getCoverageOptions(documentId) {
+  if (!documentId) {
+    throw new Error("Document ID is required.");
+  }
+
+  const response = await fetch(
+    `${API_BASE_URL}/api/underwriting/${documentId}/options`
+  );
+
+  return handleResponse(response);
+}
+
+export async function saveCoverageOptions(documentId, payload) {
+  if (!documentId) {
+    throw new Error("Document ID is required.");
+  }
+
+  const response = await fetch(
+    `${API_BASE_URL}/api/underwriting/${documentId}/options`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }
+  );
+
+  return handleResponse(response);
+}
+
+
+
+
+
 // GET ORIGINAL DOCUMENT AS BLOB
 
 export async function getOriginalDocument(documentId) {

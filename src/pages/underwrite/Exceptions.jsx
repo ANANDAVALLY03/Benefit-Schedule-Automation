@@ -302,20 +302,32 @@ export default function Exceptions() {
         (document) => idOf(document) != null
       );
 
-      const results = await Promise.allSettled(
-        validDocuments.map(async (document) => {
-          const documentId = idOf(document);
+     
+const results = await Promise.allSettled(
+  validDocuments.map(async (document) => {
+    console.log("Document object:", document);
+    console.log("Document ID sent to benefits API:", document.id);
+    console.log("Document ID from helper:", idOf(document));
 
-          const response = await getBenefits(
-            Number(documentId)
-          );
+    const documentId = idOf(document);
 
-          return {
-            documentId: String(documentId),
-            benefits: asArray(response, "benefits"),
-          };
-        })
-      );
+    const response = await getBenefits(
+      Number(documentId)
+    );
+
+    console.log(
+      "Benefits API response for document:",
+      documentId,
+      response
+    );
+
+    return {
+      documentId: String(documentId),
+      benefits: asArray(response, "benefits"),
+    };
+  })
+);
+
 
       const loadedBenefits = {};
       const failedDocuments = [];

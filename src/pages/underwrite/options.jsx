@@ -1,72 +1,67 @@
-import { useEffect, useState } from "react";
+
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
-  Check,
-  Plus,
-  Save,
-  ArrowRight,
-  Trash2,
-  AlertTriangle,
-} from "lucide-react";
+  getBenefits,
+  getCoverageOptions,
+  saveCoverageOptions,
+} from "../../services/apis";
 
-import { getBenefits } from "../../services/apis";
-
-const MAX_OPTIONS = 3;
-
-const COVERAGE_FIELDS = [
-  "limits",
-  "percentages",
-  "visits",
-  "copay_ucr",
-  "deductibles",
-  "benefit_treatment",
-  "other_attributes",
-];
-
-const isAvailable = (value) => {
-  if (value === null || value === undefined) return false;
-
-  if (typeof value === "string") {
-    const text = value.trim();
-    return text !== "" && text.toUpperCase() !== "N/A";
-  }
-
-  return true;
+const COLORS = {
+  green: "#006B55",
+  dark: "#004C40",
+  mint: "#E0F4EC",
+  border: "#D4E5DE",
+  text: "#173C35",
+  muted: "#71847E",
+  background: "#F4F8F6",
+  white: "#FFFFFF",
+  red: "#B42318",
 };
 
-const formatValue = (value) => {
-  if (!isAvailable(value)) return "N/A";
+function normalizeBenefits(response) {
+  const items = Array.isArray(response)
+    ? response
+    : response?.benefits || response?.data || [];
 
-  if (typeof value === "object") {
-    return JSON.stringify(value);
-  }
+  return items.map((item, index) => ({
+    id: Number(item.id ?? item.benefit_id ?? index + 1),
+    name: item.benefit_name ?? item.name ?? `Benefit ${index + 1}`,
+    category: item.benefit_category ?? item.category ?? "",
+    limits: item.limits ?? "",
+    percentages: item.percentages ?? "",
+    visits: item.visits ?? "",
+    deductibles: item.deductibles ?? "",
+    copay: item.copay_ucr ?? "",
+    treatment: item.benefit_treatment ?? "",
+  }));
+}
 
-  return String(value);
-};
+function currentValue(benefit) {
+  return [
+    ["Limit", benefit.limits],
+    ["Percentage", benefit.percentages],
+    ["Visits", benefit.visits],
+    ["Deductible", benefit.deductibles],
+    ["Copay / UCR", benefit.copay],
+    ["Treatment", benefit.treatment],
+  ]
+    .filter(([, value]) => value !== null && value !== undefined && value !== "")
+    .map(([label, value]) => `${label}: ${value}`)
+    .join(" · ") || "Not specified";
+}
 
-const getPrimaryCoverage = (benefit) => {
-  for (const field of COVERAGE_FIELDS) {
-    if (isAvailable(benefit[field])) {
-      return {
-        field,
-        value: formatValue(benefit[field]),
-      };
-    }
-  }
-
+function newOption(number, benefits) {
   return {
-    field: null,
-    value: "N/A",
+    id: number,
+    name: `Option ${number}`,
+    values: Object.fromEntries(
+      benefits.map((benefit) => [String(benefit.id), ""])
+    ),
   };
-};
+}
 
-const createOption = (id) => ({
-  id,
-  name: `Option ${id}`,
-  values: {},
-});
-
-function Options() {
+export default function Options() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
@@ -74,140 +69,114 @@ function Options() {
     searchParams.get("documentId") ||
     sessionStorage.getItem("lastDocumentId");
 
-  const storageKey = `canopy-simple-coverage-${documentId}`;
-
   const [benefits, setBenefits] = useState([]);
-  const [options, setOptions] = useState([
-    createOption(1),
-  ]);
-
+  const [options, setOptions] = useState([]);
   const [selectedOption, setSelectedOption] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [dirty, setDirty] = useState(false);
   const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
 
-  // LOAD BENEFITS FROM BACKEND
-  useEffect(() => {
-    let active = true;
+  const activeOption = options.find(
+    (option) => option.id === selectedOption
+  );
 
-    async function loadBenefits() {
-      if (!documentId) {
-        setError("Please select a document first.");
-        setLoading(false);
-        return;
-      }
-
-      try {
-        setLoading(true);
-        setError("");
-
-        const response = await getBenefits(Number(documentId));
-        const data = response?.data ?? response;
-
-        const records = Array.isArray(data)
-          ? data
-          : Array.isArray(data?.benefits)
-          ? data.benefits
-          : [];
-
-        if (!active) return;
-
-        const normalized = records.map((item, index) => {
-          const coverage = getPrimaryCoverage(item);
-
-          return {
-            id: item.id ?? index + 1,
-            name:
-              item.benefit_name ||
-              item.name ||
-              `Benefit ${index + 1}`,
-            category: item.benefit_category || "",
-            current: coverage.value,
-            coverageField: coverage.field,
-          };
-        });
-
-        setBenefits(normalized);
-
-        const stored = localStorage.getItem(storageKey);
-
-        if (stored) {
-          const parsed = JSON.parse(stored);
-
-          if (Array.isArray(parsed.options)) {
-            const restored = parsed.options.slice(0, MAX_OPTIONS);
-
-            if (restored.length > 0) {
-              setOptions(restored);
-              setSelectedOption(
-                restored.some(
-                  (option) => option.id === parsed.selectedOption
-                )
-                  ? parsed.selectedOption
-                  : restored[0].id
-              );
-            }
-          }
-        }
-      } catch (err) {
-        if (active) {
-          setError(
-            err?.response?.data?.detail ||
-              err?.message ||
-              "Unable to load benefits."
-          );
-        }
-      } finally {
-        if (active) setLoading(false);
-      }
+  const loadWorkspace = useCallback(async () => {
+    if (!documentId) {
+      setError("Please open a document from the Documents page first.");
+      setLoading(false);
+      return;
     }
 
-    loadBenefits();
+    setLoading(true);
+    setError("");
 
-    return () => {
-      active = false;
-    };
-  }, [documentId, storageKey]);
+    try {
+      const benefitResponse = await getBenefits(Number(documentId));
+      const normalized = normalizeBenefits(benefitResponse);
 
-  // CREATE OPTION 2 OR 3
+      setBenefits(normalized);
+
+      let restored = [];
+      let selected = 1;
+
+      try {
+        const configuration = await getCoverageOptions(Number(documentId));
+
+        if (Array.isArray(configuration.options)) {
+          restored = configuration.options.map((option) => ({
+            id: Number(option.id),
+            name: option.name || `Option ${option.id}`,
+            values: option.values || {},
+          }));
+
+          selected = Number(configuration.selected_option || 1);
+        }
+      } catch (loadError) {
+        // A failed options lookup should not hide extracted benefits.
+        console.error("Could not load saved options:", loadError);
+      }
+
+      if (restored.length) {
+        setOptions(
+          restored.slice(0, 3).map((option) => ({
+            ...option,
+            values: Object.fromEntries(
+              normalized.map((benefit) => [
+                String(benefit.id),
+                option.values?.[String(benefit.id)] ?? "",
+              ])
+            ),
+          }))
+        );
+        setSelectedOption(selected);
+        setSaved(true);
+      } else {
+        setOptions([]);
+        setSelectedOption(1);
+        setSaved(false);
+      }
+    } catch (err) {
+      setError(err.message || "Could not load extracted benefits.");
+    } finally {
+      setLoading(false);
+    }
+  }, [documentId]);
+
+  useEffect(() => {
+    loadWorkspace();
+  }, [loadWorkspace]);
+
   const addOption = () => {
-    if (options.length >= MAX_OPTIONS) return;
+    if (options.length >= 3) return;
 
-    const nextId = [1, 2, 3].find(
-      (id) => !options.some((option) => option.id === id)
+    const nextNumber = [1, 2, 3].find(
+      (number) => !options.some((option) => option.id === number)
     );
 
-    if (!nextId) return;
+    if (!nextNumber) return;
 
     setOptions((previous) => [
       ...previous,
-      createOption(nextId),
+      newOption(nextNumber, benefits),
     ]);
-
-    setSelectedOption(nextId);
-    setDirty(true);
+    setSelectedOption(nextNumber);
     setSaved(false);
+    setMessage("");
+    setError("");
   };
 
-  // REMOVE OPTION
-  const removeOption = (id) => {
-    if (id === 1) return;
-
+  const updateOptionName = (optionId, name) => {
     setOptions((previous) =>
-      previous.filter((option) => option.id !== id)
+      previous.map((option) =>
+        option.id === optionId ? { ...option, name } : option
+      )
     );
-
-    if (selectedOption === id) {
-      setSelectedOption(1);
-    }
-
-    setDirty(true);
     setSaved(false);
   };
 
-  // UPDATE PROPOSED COVERAGE
-  const updateValue = (optionId, benefitId, value) => {
+  const updateCoverage = (optionId, benefitId, value) => {
     setOptions((previous) =>
       previous.map((option) =>
         option.id === optionId
@@ -215,424 +184,527 @@ function Options() {
               ...option,
               values: {
                 ...option.values,
-                [benefitId]: value,
+                [String(benefitId)]: value,
               },
             }
           : option
       )
     );
-
-    setDirty(true);
     setSaved(false);
   };
 
-  // UPDATE OPTION NAME
-  const updateOptionName = (optionId, name) => {
-    setOptions((previous) =>
-      previous.map((option) =>
-        option.id === optionId
-          ? { ...option, name }
-          : option
-      )
-    );
+  const removeOption = (optionId) => {
+    const remaining = options.filter((option) => option.id !== optionId);
+    setOptions(remaining);
 
-    setDirty(true);
-    setSaved(false);
-  };
-
-  // COUNT ACTUAL CHANGES
-  const getChangesCount = (option) => {
-    return benefits.filter((benefit) => {
-      const proposed = option.values?.[benefit.id];
-
-      return (
-        typeof proposed === "string" &&
-        proposed.trim() !== "" &&
-        proposed.trim() !== benefit.current
-      );
-    }).length;
-  };
-
-  // SAVE DRAFT
-  const saveOptions = () => {
-    try {
-      localStorage.setItem(
-        storageKey,
-        JSON.stringify({
-          documentId,
-          selectedOption,
-          options,
-        })
-      );
-
-      setSaved(true);
-      setDirty(false);
-      setError("");
-    } catch {
-      setError("Unable to save options.");
+    if (selectedOption === optionId) {
+      setSelectedOption(remaining[0]?.id ?? 1);
     }
+
+    setSaved(false);
   };
 
-  // CONTINUE TO PRICING
-  const continueToPricing = () => {
-    if (dirty) {
-      setError("Please save your changes first.");
+  const changeCount = useMemo(
+    () =>
+      Object.values(activeOption?.values || {}).filter(
+        (value) => String(value).trim() !== ""
+      ).length,
+    [activeOption]
+  );
+
+  const handleSave = async () => {
+    if (!documentId) {
+      setError("Please select a document first.");
       return;
     }
 
-    if (!localStorage.getItem(storageKey)) {
-      setError("Please save your options first.");
+    if (!benefits.length) {
+      setError("No extracted benefits are available for this document.");
+      return;
+    }
+
+    if (!options.length) {
+      setError("Create at least one option before saving.");
+      return;
+    }
+
+    setSaving(true);
+    setError("");
+    setMessage("");
+
+    try {
+      await saveCoverageOptions(Number(documentId), {
+        selected_option: selectedOption,
+        options: options.map((option) => ({
+          option_number: option.id,
+          name: option.name.trim() || `Option ${option.id}`,
+          values: Object.entries(option.values).map(
+            ([benefitId, proposedValue]) => ({
+              benefit_id: Number(benefitId),
+              proposed_value: String(proposedValue ?? ""),
+            })
+          ),
+        })),
+      });
+
+      setSaved(true);
+      setMessage("Options saved successfully.");
+    } catch (err) {
+      setSaved(false);
+      setError(err.message || "Could not save options.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const continueToPricing = () => {
+    if (!saved) {
+      setError("Save your options before continuing to Pricing.");
       return;
     }
 
     navigate(
-      `/underwriter/pricing?documentId=${encodeURIComponent(
-        documentId
-      )}`
+      `/underwriter/pricing?documentId=${encodeURIComponent(documentId)}`
     );
+  };
+
+  const cardStyle = {
+    background: COLORS.white,
+    border: `1px solid ${COLORS.border}`,
+    borderRadius: 12,
+    padding: 20,
+  };
+
+  const inputStyle = {
+    width: "100%",
+    boxSizing: "border-box",
+    border: `1px solid ${COLORS.border}`,
+    borderRadius: 8,
+    padding: "10px 12px",
+    color: COLORS.text,
+    background: COLORS.white,
+    fontSize: 13,
+  };
+
+  const buttonStyle = {
+    border: `1px solid ${COLORS.green}`,
+    borderRadius: 8,
+    padding: "10px 15px",
+    cursor: "pointer",
+    fontWeight: 600,
+    fontSize: 13,
   };
 
   if (loading) {
     return (
-      <div className="p-10 text-center text-gray-500">
-        Loading benefits...
+      <div style={{ padding: 32, color: COLORS.text }}>
+        Loading document benefits and saved options...
       </div>
     );
   }
 
   return (
-    <div className="min-h-full bg-[#f6f8f7]">
-
-      {/* PAGE HEADER */}
-      <div className="px-7 pt-6 pb-4">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-xl bg-[#dcefe9] flex items-center justify-center">
-              <Check
-                size={22}
-                className="text-[#006653]"
-              />
-            </div>
-
-            <div>
-              <h1 className="text-2xl font-semibold text-[#073f35]">
-                Coverage Options
-              </h1>
-
-              <p className="text-sm text-gray-500 mt-1">
-                Create and compare proposed benefit coverage
-              </p>
-            </div>
-          </div>
-
-          <span className="px-4 py-2 rounded-full bg-[#fff1d7] text-[#a56600] text-sm font-medium">
-            Underwriting In Progress
-          </span>
-
+    <div
+      style={{
+        background: COLORS.background,
+        minHeight: "100%",
+        padding: "28px",
+        color: COLORS.text,
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 16,
+          flexWrap: "wrap",
+          marginBottom: 24,
+        }}
+      >
+        <div>
+          <h1 style={{ margin: 0, fontSize: 27, fontWeight: 600 }}>
+            Coverage Options
+          </h1>
+          <p style={{ color: COLORS.muted, marginBottom: 0 }}>
+            Review current benefits and create up to three coverage proposals.
+          </p>
+          <p style={{ fontSize: 12, color: COLORS.muted }}>
+            Document ID: {documentId || "Not selected"}
+          </p>
         </div>
+
+        <span
+          style={{
+            background: COLORS.mint,
+            color: COLORS.green,
+            padding: "10px 15px",
+            borderRadius: 22,
+            fontSize: 12,
+            fontWeight: 600,
+          }}
+        >
+          Underwriter Workspace
+        </span>
       </div>
 
-      <div className="px-7 pb-7 space-y-6">
+      {error && (
+        <div
+          role="alert"
+          style={{
+            background: "#FFF1F0",
+            border: "1px solid #F4C7C3",
+            color: COLORS.red,
+            borderRadius: 8,
+            padding: 13,
+            marginBottom: 18,
+          }}
+        >
+          {error}
+        </div>
+      )}
 
-        {error && (
-          <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg p-4 text-sm text-red-600">
-            <AlertTriangle size={18} />
-            {error}
+      {message && (
+        <div
+          role="status"
+          style={{
+            background: COLORS.mint,
+            color: COLORS.green,
+            borderRadius: 8,
+            padding: 13,
+            marginBottom: 18,
+          }}
+        >
+          {message}
+        </div>
+      )}
+
+      <section style={{ ...cardStyle, marginBottom: 22 }}>
+        <h2 style={{ marginTop: 0, fontSize: 19 }}>Current Benefits</h2>
+        <p style={{ color: COLORS.muted, fontSize: 13 }}>
+          Read-only values extracted from the uploaded document. Leave a
+          proposed value blank to retain the current coverage.
+        </p>
+
+        {!benefits.length ? (
+          <div
+            style={{
+              padding: 24,
+              textAlign: "center",
+              background: COLORS.background,
+              borderRadius: 8,
+            }}
+          >
+            No extracted benefits found. Check the selected document's
+            extraction status before creating options.
           </div>
-        )}
-
-        {/* BENEFIT COMPARISON */}
-        <div className="bg-white border border-[#d7e1de] rounded-xl overflow-hidden">
-
-          <div className="px-6 py-5 border-b border-[#d7e1de] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-
-            <div>
-              <h2 className="text-lg font-semibold text-[#073f35]">
-                Benefit Comparison
-              </h2>
-
-              <p className="text-sm text-gray-500 mt-1">
-                Enter proposed coverage values for each option.
-              </p>
-            </div>
-
-            <div className="flex items-center gap-3">
-
-              <span className="text-xs bg-[#e5f6ef] text-[#00785f] px-3 py-1.5 rounded-full">
-                {benefits.length} Benefits
-              </span>
-
-              {options.length < MAX_OPTIONS && (
-                <button
-                  onClick={addOption}
-                  disabled={benefits.length === 0}
-                  className="flex items-center gap-2 bg-[#006653] text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-[#005344] disabled:opacity-50"
-                >
-                  <Plus size={17} />
-                  Create Option
-                </button>
-              )}
-
-            </div>
-          </div>
-
-          <div className="overflow-x-auto">
-
-            <table className="w-full min-w-[650px] border-collapse">
-
+        ) : (
+          <div style={{ overflowX: "auto" }}>
+            <table
+              style={{
+                width: "100%",
+                borderCollapse: "collapse",
+                fontSize: 13,
+              }}
+            >
               <thead>
-                <tr className="bg-[#f4f8f6]">
-
-                  <th className="text-left px-5 py-4 text-xs font-semibold text-gray-600 border-b">
-                    Benefit
-                  </th>
-
-                  <th className="text-left px-4 py-4 text-xs font-semibold text-gray-600 border-b">
-                    Current Plan
-                  </th>
-
-                  {options.map((option) => (
+                <tr style={{ background: COLORS.mint, textAlign: "left" }}>
+                  {["Benefit", "Category", "Current Coverage"].map((heading) => (
                     <th
-                      key={option.id}
-                      className="text-left px-4 py-4 text-xs font-semibold text-[#006653] border-b"
+                      key={heading}
+                      style={{ padding: 12, borderBottom: `1px solid ${COLORS.border}` }}
                     >
-                      <div className="flex items-center justify-between gap-3">
-
-                        <span>{option.name}</span>
-
-                        {option.id !== 1 && (
-                          <button
-                            onClick={() => removeOption(option.id)}
-                            title="Remove Option"
-                            className="text-red-500 hover:text-red-700"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        )}
-
-                      </div>
+                      {heading}
                     </th>
                   ))}
-
                 </tr>
               </thead>
-
               <tbody>
                 {benefits.map((benefit) => (
-                  <tr
-                    key={benefit.id}
-                    className="hover:bg-[#fafcfb]"
-                  >
-
-                    <td className="px-5 py-4 border-b">
-                      <p className="text-sm font-medium text-[#073f35]">
-                        {benefit.name}
-                      </p>
+                  <tr key={benefit.id}>
+                    <td style={{ padding: 12, borderBottom: `1px solid ${COLORS.border}` }}>
+                      <strong>{benefit.name}</strong>
                     </td>
-
-                    <td className="px-4 py-4 border-b">
-                      <div className="px-3 py-2 bg-gray-100 rounded-lg text-sm text-gray-600">
-                        {benefit.current}
-                      </div>
+                    <td style={{ padding: 12, borderBottom: `1px solid ${COLORS.border}` }}>
+                      {benefit.category || "—"}
                     </td>
-
-                    {options.map((option) => (
-                      <td
-                        key={option.id}
-                        className="px-4 py-4 border-b min-w-[190px]"
-                      >
-                        <input
-                          type="text"
-                          value={
-                            option.values?.[benefit.id] ?? ""
-                          }
-                          onChange={(event) =>
-                            updateValue(
-                              option.id,
-                              benefit.id,
-                              event.target.value
-                            )
-                          }
-                          placeholder={benefit.current}
-                          className={`w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-[#bde5d8] ${
-                            selectedOption === option.id
-                              ? "border-[#009879] bg-[#f1faf7]"
-                              : "border-[#d7e1de]"
-                          }`}
-                        />
-                      </td>
-                    ))}
-
+                    <td style={{ padding: 12, borderBottom: `1px solid ${COLORS.border}` }}>
+                      {currentValue(benefit)}
+                    </td>
                   </tr>
                 ))}
-
-                {benefits.length === 0 && (
-                  <tr>
-                    <td
-                      colSpan={options.length + 2}
-                      className="p-8 text-center text-sm text-gray-500"
-                    >
-                      No extracted benefits found for this document.
-                    </td>
-                  </tr>
-                )}
-
               </tbody>
             </table>
-
           </div>
+        )}
+      </section>
 
-          <p className="px-5 py-3 text-xs text-gray-400 border-t">
-            Leave an option value empty to keep the current coverage.
-          </p>
-
-        </div>
-
-        {/* PROPOSAL OPTIONS & PRICING */}
-        <div>
-
-          <div className="mb-4">
-            <h2 className="text-lg font-semibold text-[#073f35]">
-              Proposal Options & Pricing
-            </h2>
-
-            <p className="text-sm text-gray-500 mt-1">
-              Pricing will be calculated after configuring the options.
+      <section style={{ ...cardStyle, marginBottom: 22 }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 12,
+            flexWrap: "wrap",
+          }}
+        >
+          <div>
+            <h2 style={{ margin: 0, fontSize: 19 }}>Underwriter Proposals</h2>
+            <p style={{ color: COLORS.muted, fontSize: 13 }}>
+              Create at least one and no more than three options.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+          <button
+            type="button"
+            onClick={addOption}
+            disabled={options.length >= 3 || !benefits.length}
+            style={{
+              ...buttonStyle,
+              background:
+                options.length >= 3 || !benefits.length
+                  ? "#B9D4CB"
+                  : COLORS.green,
+              color: COLORS.white,
+              border: "none",
+              cursor:
+                options.length >= 3 || !benefits.length
+                  ? "not-allowed"
+                  : "pointer",
+            }}
+          >
+            + Add Option ({options.length}/3)
+          </button>
+        </div>
 
-            {options.map((option) => (
-              <div
-                key={option.id}
-                className={`bg-white rounded-xl border p-5 transition ${
-                  selectedOption === option.id
-                    ? "border-[#009879] ring-2 ring-[#d8f1e8]"
-                    : "border-[#d7e1de]"
-                }`}
-              >
-
-                <div className="flex items-start justify-between">
-
-                  <div>
-                    <p className="text-xs text-gray-500">
-                      Coverage Proposal
-                    </p>
-
-                    <h3 className="text-lg font-semibold text-[#073f35] mt-1">
-                      Option {option.id}
-                    </h3>
-                  </div>
-
-                  {selectedOption === option.id && (
-                    <div className="w-7 h-7 rounded-full bg-[#009879] flex items-center justify-center">
-                      <Check
-                        size={17}
-                        className="text-white"
-                      />
-                    </div>
-                  )}
-
-                </div>
-
-                <input
-                  type="text"
-                  value={option.name}
-                  onChange={(event) =>
-                    updateOptionName(
-                      option.id,
-                      event.target.value
-                    )
-                  }
-                  placeholder="Option Name"
-                  className="mt-4 w-full px-3 py-2 rounded-lg border border-[#d7e1de] text-sm"
-                />
-
-                <p className="text-sm text-gray-500 mt-4">
-                  {getChangesCount(option)} proposed changes
-                </p>
-
-                <div className="mt-5 pt-4 border-t border-[#d7e1de]">
-                  <p className="text-xs text-gray-500">
-                    Estimated Premium
-                  </p>
-
-                  <p className="text-lg font-semibold text-[#073f35] mt-1">
-                    Pricing Pending
-                  </p>
-                </div>
-
+        {options.length === 0 ? (
+          <div
+            style={{
+              border: `1px dashed ${COLORS.border}`,
+              borderRadius: 10,
+              padding: 28,
+              textAlign: "center",
+              marginTop: 12,
+            }}
+          >
+            <h3 style={{ marginTop: 0 }}>No proposals created yet</h3>
+            <p style={{ color: COLORS.muted, fontSize: 13 }}>
+              Load the current benefits, then click Add Option to create your
+              first proposal.
+            </p>
+          </div>
+        ) : (
+          <>
+            <div
+              style={{
+                display: "flex",
+                gap: 10,
+                flexWrap: "wrap",
+                margin: "18px 0",
+              }}
+            >
+              {options.map((option) => (
                 <button
-                  onClick={() => {
-                    setSelectedOption(option.id);
-                    setDirty(true);
-                    setSaved(false);
+                  key={option.id}
+                  type="button"
+                  onClick={() => setSelectedOption(option.id)}
+                  style={{
+                    ...buttonStyle,
+                    background:
+                      selectedOption === option.id
+                        ? COLORS.green
+                        : COLORS.white,
+                    color:
+                      selectedOption === option.id
+                        ? COLORS.white
+                        : COLORS.green,
                   }}
-                  className={`w-full mt-5 py-2.5 rounded-lg text-sm font-medium ${
-                    selectedOption === option.id
-                      ? "bg-[#006653] text-white"
-                      : "border border-[#006653] text-[#006653] hover:bg-[#eef8f4]"
-                  }`}
                 >
-                  {selectedOption === option.id
-                    ? "Selected"
-                    : "Select Option"}
+                  {option.name || `Option ${option.id}`}
+                  {selectedOption === option.id ? " ✓" : ""}
                 </button>
+              ))}
+            </div>
 
+            {activeOption && (
+              <div
+                style={{
+                  border: `1px solid ${COLORS.border}`,
+                  borderRadius: 10,
+                  overflow: "hidden",
+                }}
+              >
+                <div
+                  style={{
+                    padding: 16,
+                    background: COLORS.mint,
+                    display: "flex",
+                    alignItems: "end",
+                    gap: 14,
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <label style={{ flex: "1 1 250px", fontSize: 12 }}>
+                    Option name
+                    <input
+                      value={activeOption.name}
+                      onChange={(event) =>
+                        updateOptionName(activeOption.id, event.target.value)
+                      }
+                      placeholder="e.g. Enhanced Coverage"
+                      style={{ ...inputStyle, marginTop: 6 }}
+                    />
+                  </label>
+
+                  <button
+                    type="button"
+                    onClick={() => removeOption(activeOption.id)}
+                    style={{
+                      ...buttonStyle,
+                      background: COLORS.white,
+                      color: COLORS.red,
+                      borderColor: "#E6B5B1",
+                    }}
+                  >
+                    Remove Option
+                  </button>
+                </div>
+
+                <div style={{ padding: 16, overflowX: "auto" }}>
+                  <table
+                    style={{
+                      width: "100%",
+                      borderCollapse: "collapse",
+                      minWidth: 620,
+                      fontSize: 13,
+                    }}
+                  >
+                    <thead>
+                      <tr style={{ textAlign: "left", background: "#F6FAF8" }}>
+                        <th style={{ padding: 11 }}>Benefit</th>
+                        <th style={{ padding: 11 }}>Current Plan</th>
+                        <th style={{ padding: 11 }}>Proposed Value</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {benefits.map((benefit) => (
+                        <tr key={benefit.id}>
+                          <td
+                            style={{
+                              padding: 11,
+                              borderTop: `1px solid ${COLORS.border}`,
+                              fontWeight: 600,
+                            }}
+                          >
+                            {benefit.name}
+                          </td>
+                          <td
+                            style={{
+                              padding: 11,
+                              borderTop: `1px solid ${COLORS.border}`,
+                              color: COLORS.muted,
+                              maxWidth: 280,
+                            }}
+                          >
+                            {currentValue(benefit)}
+                          </td>
+                          <td
+                            style={{
+                              padding: 11,
+                              borderTop: `1px solid ${COLORS.border}`,
+                              minWidth: 200,
+                            }}
+                          >
+                            <input
+                              value={
+                                activeOption.values[String(benefit.id)] ?? ""
+                              }
+                              onChange={(event) =>
+                                updateCoverage(
+                                  activeOption.id,
+                                  benefit.id,
+                                  event.target.value
+                                )
+                              }
+                              placeholder="Leave blank to retain current"
+                              style={inputStyle}
+                            />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+
+                  <p style={{ color: COLORS.muted, fontSize: 12 }}>
+                    {changeCount} proposed change{changeCount === 1 ? "" : "s"}.
+                    The current plan is never modified.
+                  </p>
+                </div>
               </div>
-            ))}
+            )}
+          </>
+        )}
 
-          </div>
+        <p style={{ color: COLORS.muted, fontSize: 12, marginBottom: 0 }}>
+          {options.length >= 3
+            ? "Maximum reached: three options."
+            : `${3 - options.length} more option${3 - options.length === 1 ? "" : "s"} can be created.`}
+        </p>
+      </section>
+
+      <div
+        style={{
+          ...cardStyle,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 14,
+          flexWrap: "wrap",
+        }}
+      >
+        <div>
+          <strong>Option Configuration</strong>
+          <p style={{ marginBottom: 0, fontSize: 12, color: COLORS.muted }}>
+            {saved
+              ? "Your current configuration is saved."
+              : "Save your changes before continuing to pricing."}
+          </p>
         </div>
 
-        {/* ACTION BAR */}
-        <div className="bg-white border border-[#d7e1de] rounded-xl p-5">
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving || loading || !benefits.length || !options.length}
+            style={{
+              ...buttonStyle,
+              background: COLORS.white,
+              color: COLORS.green,
+              opacity:
+                saving || loading || !benefits.length || !options.length
+                  ? 0.55
+                  : 1,
+            }}
+          >
+            {saving ? "Saving..." : "Save Options"}
+          </button>
 
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-
-            <div>
-              <p className="text-sm font-medium text-[#073f35]">
-                Option Configuration
-              </p>
-
-              <p className="text-xs text-gray-500 mt-1">
-                {saved && !dirty
-                  ? "Your draft has been saved."
-                  : "Save your options before continuing to pricing."}
-              </p>
-            </div>
-
-            <div className="flex flex-col sm:flex-row gap-3">
-
-              <button
-                onClick={saveOptions}
-                className="flex items-center justify-center gap-2 px-5 py-3 rounded-lg border border-[#006653] text-[#006653] hover:bg-[#eef8f4] text-sm font-medium"
-              >
-                <Save size={18} />
-
-                {saved && !dirty
-                  ? "Options Saved"
-                  : "Save Options"}
-              </button>
-
-              <button
-                onClick={continueToPricing}
-                disabled={dirty}
-                className="flex items-center justify-center gap-2 px-5 py-3 rounded-lg bg-[#006653] hover:bg-[#005344] text-white text-sm font-medium disabled:opacity-50"
-              >
-                Continue to Pricing
-                <ArrowRight size={18} />
-              </button>
-
-            </div>
-          </div>
+          <button
+            type="button"
+            onClick={continueToPricing}
+            disabled={!saved}
+            style={{
+              ...buttonStyle,
+              background: COLORS.green,
+              color: COLORS.white,
+              opacity: saved ? 1 : 0.55,
+            }}
+          >
+            Continue to Pricing →
+          </button>
         </div>
-
       </div>
     </div>
   );
 }
-
-export default Options;

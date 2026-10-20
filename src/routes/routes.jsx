@@ -2,7 +2,7 @@ import { Routes, Route, Navigate } from "react-router-dom";
 
 import Layout from "../components/Layout";
 
-import UnderwriterOverview from "../pages/underWrite/underWrite";
+import UnderwriterOverview from "../pages/underwrite/underWrite.jsx";
 import Documents from "../pages/underwrite/Documents";
 import Benefits from "../pages/underwrite/Benefits";
 import Validations from "../pages/underwrite/Validations";
